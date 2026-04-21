@@ -1443,8 +1443,10 @@ a {
 }
 
 .chart-container-large {
-  width: min(80vw, 860px);
-  height: 340px;
+  width: min(68vw, 720px);
+  max-width: 100%;
+  height: 300px;
+  margin: 0 auto;
 }
 
 /* reload */
@@ -1510,8 +1512,8 @@ a {
 }
 
 .text-scroll-result {
-  max-height: calc(1.8em * 5 + 36px);
-  width: min(80vw, 860px);
+  width: min(74vw, 780px);
+  max-width: 100%;
   margin-bottom: 20px;
 }
 
@@ -1823,12 +1825,13 @@ a {
   margin-bottom: 20px;
   font-size: 26px;
   line-height: 1.8;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-height: calc(1.8em * 3);
+}
+
+.replay-scrollable {
+  display: block;
+  overflow-y: auto;
+  overflow-x: hidden;
+  text-overflow: clip;
 }
 
 .replay-word {
@@ -1885,7 +1888,7 @@ a {
 
   .chart-container-large {
     width: 100%;
-    height: 260px;
+    height: 250px;
   }
 
   .leaderboard-chart {

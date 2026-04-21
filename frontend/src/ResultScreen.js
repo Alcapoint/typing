@@ -7,6 +7,7 @@ function ResultScreen({
   totalTime,
   wpm,
   accuracy,
+  replayMaxLines = 6,
   primaryActionLabel,
   onPrimaryAction,
   secondaryActionLabel,
@@ -87,7 +88,17 @@ function ResultScreen({
         </div>
       </div>
 
-      <div className="replay text-scroll text-scroll-result">
+      <div
+        className={[
+          "replay",
+          "text-scroll",
+          "text-scroll-result",
+          "replay-scrollable",
+        ].join(" ")}
+        style={{
+          maxHeight: `calc(1.8em * ${replayMaxLines} + 36px)`,
+        }}
+      >
         {words.map((word, index) => renderReplayWord(word, index))}
       </div>
 

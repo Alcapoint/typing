@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import api from "./api";
 import ResultScreen from "./ResultScreen";
 
@@ -553,43 +553,60 @@ function TrainerPage({ currentUser, isLoggedIn, replayTraining }) {
     );
   };
 
-  useEffect(() => {
-    const currentWordElement = trainerWordRefs.current[getCurrentWordIndex()];
+  useLayoutEffect(() => {
     const scrollContainer = trainerTextRef.current;
 
-    if (!currentWordElement || !scrollContainer) {
+    if (!scrollContainer) {
       return;
     }
 
-    const containerRect = scrollContainer.getBoundingClientRect();
-    const wordRect = currentWordElement.getBoundingClientRect();
-    const wordMiddle = wordRect.top + wordRect.height / 2;
-    const triggerLine = containerRect.top + containerRect.height / 2;
-    const computedStyles = window.getComputedStyle(scrollContainer);
-    const lineHeight = parseFloat(computedStyles.lineHeight) || 50;
-    const maxScrollTop = Math.max(
-      0,
-      scrollContainer.scrollHeight - scrollContainer.clientHeight
-    );
+    const rafId = window.requestAnimationFrame(() => {
+      const activeMarker = scrollContainer.querySelector(".current, .current-space-slot");
+      const fallbackWordElement = trainerWordRefs.current[getCurrentWordIndex()];
+      const targetElement = activeMarker || fallbackWordElement;
 
-    if (wordMiddle >= triggerLine && scrollContainer.scrollTop < maxScrollTop) {
-      const nextScrollTop = Math.min(
-        scrollContainer.scrollTop + lineHeight,
-        maxScrollTop
-      );
-
-      if (nextScrollTop > lastAutoScrollTopRef.current + 1) {
-        lastAutoScrollTopRef.current = nextScrollTop;
-        scrollContainer.scrollTo({
-          top: nextScrollTop,
-          behavior: "smooth",
-        });
+      if (!targetElement) {
+        return;
       }
-    } else if (
-      scrollContainer.scrollTop < lastAutoScrollTopRef.current - lineHeight / 2
-    ) {
-      lastAutoScrollTopRef.current = scrollContainer.scrollTop;
-    }
+
+      const computedStyles = window.getComputedStyle(scrollContainer);
+      const lineHeight = parseFloat(computedStyles.lineHeight) || 50;
+      const maxScrollTop = Math.max(
+        0,
+        scrollContainer.scrollHeight - scrollContainer.clientHeight
+      );
+      const containerRect = scrollContainer.getBoundingClientRect();
+      const targetRect = targetElement.getBoundingClientRect();
+      const targetMiddle =
+        targetRect.top - containerRect.top + scrollContainer.scrollTop + targetRect.height / 2;
+      const triggerLine = scrollContainer.scrollTop + scrollContainer.clientHeight / 2;
+
+      if (targetMiddle >= triggerLine && scrollContainer.scrollTop < maxScrollTop) {
+        const nextScrollTop = Math.min(
+          Math.max(
+            targetMiddle - scrollContainer.clientHeight / 2 + lineHeight * 0.35,
+            scrollContainer.scrollTop + lineHeight * 0.9
+          ),
+          maxScrollTop
+        );
+
+        if (nextScrollTop > lastAutoScrollTopRef.current + 1) {
+          lastAutoScrollTopRef.current = nextScrollTop;
+          scrollContainer.scrollTo({
+            top: nextScrollTop,
+            behavior: "smooth",
+          });
+        }
+      } else if (
+        scrollContainer.scrollTop < lastAutoScrollTopRef.current - lineHeight / 2
+      ) {
+        lastAutoScrollTopRef.current = scrollContainer.scrollTop;
+      }
+    });
+
+    return () => {
+      window.cancelAnimationFrame(rafId);
+    };
   }, [input, text]);
 
   const persistResult = (finalWords, totalTimeValue, finalSpeed, finalAccuracy) => {
@@ -1011,6 +1028,7 @@ function TrainerPage({ currentUser, isLoggedIn, replayTraining }) {
         totalTime={totalTime}
         wpm={wpm}
         accuracy={accuracy}
+        replayMaxLines={6}
         primaryActionLabel="Вернуться"
         onPrimaryAction={handleRestartCurrentText}
       />
