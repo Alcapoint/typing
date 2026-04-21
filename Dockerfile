@@ -18,8 +18,6 @@ RUN chmod +x /usr/local/bin/entrypoint.sh
 
 COPY ./backend /app/backend
 
-COPY ./data /app/data
-
 ENTRYPOINT ["entrypoint.sh"]
 
-CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-8000} foodgram.wsgi:application"]
+CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-8000} typing_trainer.wsgi:application"]

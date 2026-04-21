@@ -1,73 +1,66 @@
-Добавте в корневую папку проекта файл .env по шаблону
-```
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=postgres
-POSTGRES_DB=foodgram
-DB_HOST=db
-DB_PORT=5432
-```
-# Для использования локально
+# Typing Trainer
 
-Перейдите в папку с файлом manage.py
+Полноэкранный тренажер скорости печати с аккаунтами, историей тренировок,
+лидербордом, пользовательскими текстами и статистикой по словам.
+
+## Стек
+
+- `Django + DRF + Djoser`
+- `PostgreSQL`
+- `React`
+- `Docker / Docker Compose`
+- `Render`
+
+## Быстрый старт локально
+
+1. Создайте `.env` на основе `.env.example`.
+2. Перейдите в папку backend:
+
+```bash
+cd backend
 ```
-cd foodgram-st/backend
-```
-Выполните миграции
-```
-python3 manage.py makemigrations
-```
-```
+
+3. Установите зависимости и выполните миграции:
+
+```bash
+pip install -r ../requirements.txt
 python3 manage.py migrate
 ```
-Загрузите список игредиентов 
-```
-python3 manage.py load_ingredients
-```
-Запустите сервер
-```
+
+4. Запустите backend:
+
+```bash
 python3 manage.py runserver
 ```
-## 
 
-# Через Docker
-Перейдите в папку /infra
-```
-cd ./infra
-```
-Соберите контейнеры
-```
-docker-compose up -d --build
+5. В отдельном терминале запустите frontend:
+
+```bash
+cd frontend
+npm install
+npm start
 ```
 
-При старте контейнеров теперь автоматически выполняются:
-```
-- ожидание готовности PostgreSQL
-- python manage.py makemigrations --noinput
-- python manage.py migrate --noinput
-- python manage.py collectstatic --noinput --clear
-- копирование frontend build в общий volume для nginx
+Frontend будет доступен на `http://localhost:3000`, backend на
+`http://127.0.0.1:8000`.
+
+## Запуск через Docker
+
+```bash
+cd infra
+docker compose up -d --build
 ```
 
-## 
+После старта приложение будет доступно на `http://localhost`.
 
-Проект доступен на адресах
-```
- http://localhost
-```
-```
- http://127.0.0.1
-```
+## Админка
 
-Админ-зона находится по адресу
-```
- http://localhost/admin
-```
-> Для доступа в админ зону потребуется создать суперпользователя командой
-```
-docker-compose exec backend python manage.py createsuperuser
-```
-Спецификация API находится по адресу
-```
-http://localhost/api/docs/
-```
+Админ-зона доступна по адресу `http://localhost/admin/`.
 
+Если задать переменные `DJANGO_SUPERUSER_*`, суперпользователь создается
+автоматически при старте контейнера.
+
+## Деплой
+
+В репозитории есть `render.yaml` для деплоя backend, frontend и PostgreSQL
+на Render.

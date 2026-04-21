@@ -1,7 +1,6 @@
 services:
-  
   backend:
-    container_name: foodgram-backend
+    container_name: typing-trainer-backend
     build:
       context: ..
       dockerfile: Dockerfile
@@ -17,7 +16,7 @@ services:
       - "8000:8000"
 
   frontend:
-    container_name: foodgram-front
+    container_name: typing-trainer-frontend
     build:
       context: ../frontend
       dockerfile: Dockerfile
@@ -34,7 +33,7 @@ services:
       - "5433:5432"
 
   nginx:
-    container_name: foodgram-proxy
+    container_name: typing-trainer-proxy
     image: nginx:1.25.4-alpine
     ports:
       - "80:80"
@@ -43,7 +42,6 @@ services:
       - frontend_static:/usr/share/nginx/html/web/build/:ro
       - backend_static:/usr/share/nginx/html/static/:ro
       - backend_media:/usr/share/nginx/html/media/:ro
-      - ../docs/:/usr/share/nginx/html/api/docs/:ro
     depends_on:
       - backend
       - frontend

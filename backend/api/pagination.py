@@ -1,4 +1,4 @@
-from foodgram.const import PAGE_SIZE
+from typing_trainer.const import PAGE_SIZE
 from rest_framework.pagination import PageNumberPagination
 
 

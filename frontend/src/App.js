@@ -9,6 +9,82 @@ import TrainerPage from "./TrainerPage";
 import TrainingDetailPage from "./TrainingDetailPage";
 import api from "./api";
 
+const MOBILE_NOTICE_LINES = [
+  "Мобильная версия недоступна.",
+  "Тренажер рассчитан на работу с физической клавиатурой.",
+  "Откройте сайт с ноутбука или настольного компьютера.",
+];
+
+function getIsMobileViewport() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  const hasTouch = window.matchMedia("(pointer: coarse)").matches;
+  const isNarrow = window.matchMedia("(max-width: 900px)").matches;
+  const mobileAgent = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+    window.navigator.userAgent
+  );
+
+  return mobileAgent || (hasTouch && isNarrow);
+}
+
+function MobileGate() {
+  const [visibleText, setVisibleText] = useState("");
+
+  useEffect(() => {
+    const fullText = MOBILE_NOTICE_LINES.join("\n\n");
+    let index = 0;
+    let timeoutId;
+
+    const printNext = () => {
+      if (index >= fullText.length) {
+        return;
+      }
+
+      const character = fullText[index];
+      index += 1;
+      setVisibleText((current) => current + character);
+
+      const isPauseChar = /[.,:;]/.test(character);
+      const isLineBreak = character === "\n";
+      const delay = isLineBreak
+        ? 280 + Math.random() * 420
+        : isPauseChar
+          ? 120 + Math.random() * 250
+          : 18 + Math.random() * 95;
+
+      timeoutId = window.setTimeout(printNext, delay);
+    };
+
+    timeoutId = window.setTimeout(printNext, 300);
+
+    return () => window.clearTimeout(timeoutId);
+  }, []);
+
+  return (
+    <div className="mobile-gate">
+      <div className="mobile-gate__panel">
+        <div className="mobile-gate__eyebrow">Desktop Only</div>
+        <h1 className="mobile-gate__title">
+          Сайт доступен только с компьютера
+        </h1>
+        <div className="mobile-gate__terminal">
+          <div className="mobile-gate__terminal-bar">
+            <span />
+            <span />
+            <span />
+          </div>
+          <pre className="mobile-gate__typing">
+            {visibleText}
+            <span className="mobile-gate__caret" aria-hidden="true" />
+          </pre>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AppHeader({ currentUser, onLogin, onLogout }) {
   return (
     <div className="topbar">
@@ -35,6 +111,7 @@ function AppHeader({ currentUser, onLogin, onLogout }) {
 
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
+  const [isMobileViewport, setIsMobileViewport] = useState(getIsMobileViewport);
   const location = useLocation();
 
   const loadCurrentUser = () => (
@@ -52,12 +129,31 @@ function App() {
   );
 
   useEffect(() => {
-    if (!localStorage.getItem("token")) {
+    if (typeof window === "undefined") {
+      return undefined;
+    }
+
+    const handleViewportChange = () => {
+      setIsMobileViewport(getIsMobileViewport());
+    };
+
+    handleViewportChange();
+    window.addEventListener("resize", handleViewportChange);
+
+    return () => window.removeEventListener("resize", handleViewportChange);
+  }, []);
+
+  useEffect(() => {
+    if (isMobileViewport || !localStorage.getItem("token")) {
       return;
     }
 
     loadCurrentUser().catch(() => null);
-  }, []);
+  }, [isMobileViewport]);
+
+  if (isMobileViewport) {
+    return <MobileGate />;
+  }
 
   return (
     <div className="app-shell">

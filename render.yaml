@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: foodgram-backend
+    name: typing-trainer-backend
     runtime: docker
     plan: free
     dockerfilePath: ./Dockerfile
@@ -9,9 +9,9 @@ services:
       - key: DEBUG
         value: false
       - key: ALLOWED_HOSTS
-        value: localhost,127.0.0.1,foodgram-backend-j5pr.onrender.com
+        sync: false
       - key: CSRF_TRUSTED_ORIGINS
-        value: https://foodgram-backend-j5pr.onrender.com,https://foodgram-frontend-64x1.onrender.com
+        sync: false
       - key: SECRET_KEY
         generateValue: true
       - key: DJANGO_SUPERUSER_EMAIL
@@ -26,27 +26,27 @@ services:
         sync: false
       - key: POSTGRES_DB
         fromDatabase:
-          name: foodgram-db
+          name: typing-trainer-db
           property: database
       - key: POSTGRES_USER
         fromDatabase:
-          name: foodgram-db
+          name: typing-trainer-db
           property: user
       - key: POSTGRES_PASSWORD
         fromDatabase:
-          name: foodgram-db
+          name: typing-trainer-db
           property: password
       - key: DB_HOST
         fromDatabase:
-          name: foodgram-db
+          name: typing-trainer-db
           property: host
       - key: DB_PORT
         fromDatabase:
-          name: foodgram-db
+          name: typing-trainer-db
           property: port
 
   - type: web
-    name: foodgram-frontend
+    name: typing-trainer-frontend
     runtime: static
     rootDir: frontend
     buildCommand: npm install && npm run build
@@ -56,14 +56,14 @@ services:
     routes:
       - type: rewrite
         source: /api/*
-        destination: https://foodgram-backend-j5pr.onrender.com/api/*
+        destination: https://typing-trainer-backend.onrender.com/api/*
       - type: rewrite
         source: /media/*
-        destination: https://foodgram-backend-j5pr.onrender.com/media/*
+        destination: https://typing-trainer-backend.onrender.com/media/*
       - type: rewrite
         source: /*
         destination: /index.html
 
 databases:
-  - name: foodgram-db
+  - name: typing-trainer-db
     plan: free

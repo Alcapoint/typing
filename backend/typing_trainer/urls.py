@@ -9,7 +9,7 @@ def root_view(request):
     return JsonResponse(
         {
             'status': 'ok',
-            'message': 'Foodgram backend is running',
+            'message': 'Typing Trainer API is running',
             'api': '/api/',
             'admin': '/admin/',
         }

@@ -2,8 +2,8 @@ from django.contrib import admin
 
 from .models import HelpItem, HelpSection, Language, Result, Text, UserText
 
-admin.site.site_header = 'Foodgram Admin'
-admin.site.site_title = 'Foodgram Admin'
+admin.site.site_header = 'Typing Trainer Admin'
+admin.site.site_title = 'Typing Trainer Admin'
 admin.site.index_title = 'Управление проектом'
 
 
