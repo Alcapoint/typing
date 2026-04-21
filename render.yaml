@@ -9,9 +9,9 @@ services:
       - key: DEBUG
         value: false
       - key: ALLOWED_HOSTS
-        sync: false
+        value: localhost,127.0.0.1,typing-trainer-backend-f03r.onrender.com
       - key: CSRF_TRUSTED_ORIGINS
-        sync: false
+        value: https://typing-trainer-backend-f03r.onrender.com,https://typing-trainer-frontend.onrender.com
       - key: SECRET_KEY
         generateValue: true
       - key: DJANGO_SUPERUSER_EMAIL
@@ -56,10 +56,10 @@ services:
     routes:
       - type: rewrite
         source: /api/*
-        destination: https://typing-trainer-backend.onrender.com/api/*
+        destination: https://typing-trainer-backend-f03r.onrender.com/api/*
       - type: rewrite
         source: /media/*
-        destination: https://typing-trainer-backend.onrender.com/media/*
+        destination: https://typing-trainer-backend-f03r.onrender.com/media/*
       - type: rewrite
         source: /*
         destination: /index.html

@@ -4,12 +4,32 @@ class Api {
   }
 
   checkResponse(res) {
-    return new Promise((resolve, reject) => {
-      if (res.status === 204) {
-        return resolve(res);
+    if (res.status === 204) {
+      return Promise.resolve(res);
+    }
+
+    return res.text().then((rawText) => {
+      let data = null;
+
+      if (rawText) {
+        try {
+          data = JSON.parse(rawText);
+        } catch (error) {
+          data = {
+            detail: rawText,
+          };
+        }
       }
-      const func = res.status < 400 ? resolve : reject;
-      res.json().then((data) => func(data));
+
+      if (res.ok) {
+        return data;
+      }
+
+      return Promise.reject(
+        data || {
+          detail: `Request failed with status ${res.status}`,
+        }
+      );
     });
   }
   
