@@ -1,0 +1,59 @@
+services:
+  - type: web
+    name: foodgram-backend
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    autoDeploy: true
+    envVars:
+      - key: DEBUG
+        value: false
+      - key: ALLOWED_HOSTS
+        sync: false
+      - key: CSRF_TRUSTED_ORIGINS
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+      - key: POSTGRES_DB
+        fromDatabase:
+          name: foodgram-db
+          property: database
+      - key: POSTGRES_USER
+        fromDatabase:
+          name: foodgram-db
+          property: user
+      - key: POSTGRES_PASSWORD
+        fromDatabase:
+          name: foodgram-db
+          property: password
+      - key: DB_HOST
+        fromDatabase:
+          name: foodgram-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: foodgram-db
+          property: port
+
+  - type: web
+    name: foodgram-frontend
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./build
+    previews:
+      generation: automatic
+    routes:
+      - type: rewrite
+        source: /api/*
+        destination: https://foodgram-backend.onrender.com/api/*
+      - type: rewrite
+        source: /media/*
+        destination: https://foodgram-backend.onrender.com/media/*
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+databases:
+  - name: foodgram-db
+    plan: free
