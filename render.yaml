@@ -46,10 +46,10 @@ services:
     routes:
       - type: rewrite
         source: /api/*
-        destination: https://foodgram-backend.onrender.com/api/*
+        destination: https://foodgram-backend-j5pr.onrender.com/api/*
       - type: rewrite
         source: /media/*
-        destination: https://foodgram-backend.onrender.com/media/*
+        destination: https://foodgram-backend-j5pr.onrender.com/media/*
       - type: rewrite
         source: /*
         destination: /index.html

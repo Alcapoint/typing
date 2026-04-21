@@ -1,9 +1,23 @@
 from django.conf import settings
 from django.contrib import admin
+from django.http import JsonResponse
 from django.views.static import serve
 from django.urls import path, include
 
+
+def root_view(request):
+    return JsonResponse(
+        {
+            'status': 'ok',
+            'message': 'Foodgram backend is running',
+            'api': '/api/',
+            'admin': '/admin/',
+        }
+    )
+
+
 urlpatterns = [
+    path('', root_view, name='root'),
     path('admin/', admin.site.urls),
     path('api/', include('trainer.urls')),
     path('api/', include('api.urls')),
