@@ -14,6 +14,16 @@ services:
         value: https://foodgram-backend-j5pr.onrender.com,https://foodgram-frontend-64x1.onrender.com
       - key: SECRET_KEY
         generateValue: true
+      - key: DJANGO_SUPERUSER_EMAIL
+        sync: false
+      - key: DJANGO_SUPERUSER_USERNAME
+        sync: false
+      - key: DJANGO_SUPERUSER_FIRST_NAME
+        sync: false
+      - key: DJANGO_SUPERUSER_LAST_NAME
+        sync: false
+      - key: DJANGO_SUPERUSER_PASSWORD
+        sync: false
       - key: POSTGRES_DB
         fromDatabase:
           name: foodgram-db
