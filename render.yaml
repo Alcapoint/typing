@@ -9,9 +9,9 @@ services:
       - key: DEBUG
         value: false
       - key: ALLOWED_HOSTS
-        sync: false
+        value: localhost,127.0.0.1,foodgram-backend-j5pr.onrender.com
       - key: CSRF_TRUSTED_ORIGINS
-        sync: false
+        value: https://foodgram-backend-j5pr.onrender.com,https://foodgram-frontend-64x1.onrender.com
       - key: SECRET_KEY
         generateValue: true
       - key: POSTGRES_DB
