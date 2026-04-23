@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import api from "./api";
+import api from "../../api";
 
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {

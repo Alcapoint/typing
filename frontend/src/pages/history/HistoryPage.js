@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { useHistory } from "react-router-dom";
-import api from "./api";
-import TrainingMiniChart from "./TrainingMiniChart";
-import { formatDateTime } from "./utils/date";
+import api from "../../api";
+import TrainingMiniChart from "../../components/charts/TrainingMiniChart";
+import { formatDateTime } from "../../utils/date";
 
 function HistoryPage({ currentUser }) {
   const [items, setItems] = useState([]);

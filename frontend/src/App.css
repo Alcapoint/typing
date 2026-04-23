@@ -240,6 +240,7 @@ a {
   text-align: left;
   cursor: pointer;
   transition: color 0.18s ease;
+  overflow-wrap: anywhere;
 }
 
 .user-menu-link-button {
@@ -487,6 +488,7 @@ a {
   padding: 24px;
   border-radius: 20px;
   background: rgba(14, 14, 14, 0.42);
+  min-width: 0;
 }
 
 .page-muted {
@@ -531,6 +533,7 @@ a {
 
 .profile-email {
   color: #9b9b9b;
+  overflow-wrap: anywhere;
 }
 
 .profile-form {
@@ -540,7 +543,7 @@ a {
 
 .profile-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 12px;
 }
 
@@ -615,13 +618,13 @@ a {
 
 .leaderboard-card {
   display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 18px;
-  align-items: center;
+  gap: 14px;
+  align-items: start;
   padding: 18px 20px;
   border-radius: 20px;
   background: rgba(14, 14, 14, 0.34);
   transition: transform 0.2s ease, background 0.2s ease;
+  min-width: 0;
 }
 
 .leaderboard-card-button {
@@ -648,45 +651,45 @@ a {
   background: rgba(14, 14, 14, 0.38);
 }
 
-.leaderboard-rank {
-  min-width: 64px;
-  padding: 8px 10px;
-  border-radius: 14px;
-  background: transparent;
-  color: #636368;
-  font-size: 18px;
-  font-weight: 500;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-  transition: color 0.18s ease;
-}
-
 .leaderboard-main {
   display: grid;
   gap: 10px;
+  min-width: 0;
 }
 
 .leaderboard-name-row {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
 }
 
 .leaderboard-name-row h3 {
   margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .leaderboard-username {
   color: #6f6f73;
+  overflow-wrap: anywhere;
 }
 
 .leaderboard-stats {
   display: flex;
-  gap: 16px;
+  gap: 12px;
   flex-wrap: wrap;
   font-family: "Tektur", sans-serif;
+}
+
+.leaderboard-meta-value {
+  font-size: 22px;
+  overflow-wrap: anywhere;
+}
+
+.leaderboard-date-chip {
+  color: #8c8c91;
+  font-size: 16px;
+  overflow-wrap: anywhere;
 }
 
 .stat-showcase {
@@ -704,6 +707,7 @@ a {
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.014);
   text-align: left;
+  min-width: 0;
 }
 
 .stat-card-accent {
@@ -725,6 +729,7 @@ a {
   color: #f2f2f2;
   font-family: "Tektur", sans-serif;
   font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }
 
 .stat-value-small {
@@ -804,6 +809,7 @@ a {
   border-radius: 26px;
   background: rgba(12, 12, 12, 0.94);
   box-shadow: 0 24px 72px rgba(0, 0, 0, 0.34);
+  min-width: 0;
 }
 
 .leaderboard-modal-close {
@@ -812,11 +818,16 @@ a {
   right: 18px;
   width: 42px;
   height: 42px;
+  border: none;
   border-radius: 999px;
   background: transparent;
+  box-shadow: none;
   color: #cfcfcf;
   font-size: 24px;
   cursor: pointer;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 .leaderboard-profile-hero {
@@ -824,6 +835,7 @@ a {
   align-items: center;
   gap: 18px;
   margin-bottom: 22px;
+  padding-right: 56px;
 }
 
 .leaderboard-avatar {
@@ -869,6 +881,7 @@ a {
   padding: 20px;
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.012);
+  min-width: 0;
 }
 
 .panel-heading {
@@ -893,6 +906,7 @@ a {
   padding: 16px;
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.012);
+  min-width: 0;
 }
 
 .mini-training-header,
@@ -948,6 +962,7 @@ a {
   background: rgba(14, 14, 14, 0.34);
   transition: transform 0.2s ease, background 0.2s ease;
   cursor: pointer;
+  min-width: 0;
 }
 
 .history-card:hover {
@@ -977,6 +992,7 @@ a {
   color: #6f6f73;
   font-size: 22px;
   transition: color 0.18s ease;
+  overflow-wrap: anywhere;
 }
 
 .history-text-preview {
@@ -989,6 +1005,7 @@ a {
   -webkit-line-clamp: 3;
   overflow: hidden;
   transition: color 0.18s ease;
+  overflow-wrap: anywhere;
 }
 
 .history-card:hover .history-card-date,
@@ -1507,6 +1524,54 @@ a {
   background: rgba(14, 14, 14, 0.38);
 }
 
+.trainer-text-shell {
+  position: relative;
+}
+
+.trainer-text-shell-locked .text-scroll-trainer {
+  filter: blur(4px);
+  user-select: none;
+}
+
+.trainer-lock-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  border-radius: 20px;
+}
+
+.trainer-lock-badge {
+  width: min(100%, 360px);
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 0;
+  text-align: center;
+}
+
+.trainer-lock-icon {
+  width: 36px;
+  height: 36px;
+  color: #b8b8bc;
+}
+
+.trainer-lock-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.trainer-lock-title {
+  color: #c7c7cb;
+  font-size: 20px;
+  line-height: 1.2;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.28);
+}
+
 .text-scroll-trainer {
   max-height: calc(1.8em * 10 + 36px);
 }
@@ -1515,6 +1580,11 @@ a {
   width: min(74vw, 780px);
   max-width: 100%;
   margin-bottom: 20px;
+}
+
+.history-detail-replay {
+  min-height: calc(1.65em * 5 + 40px) !important;
+  max-height: min(68vh, 920px) !important;
 }
 
 /* символы */
@@ -1675,6 +1745,15 @@ a {
   z-index: 20;
 }
 
+.result-screen > h1 {
+  width: min(100%, 780px);
+  margin: 0 0 20px;
+  text-align: center;
+  font-size: clamp(28px, 4vw, 42px);
+  line-height: 1.08;
+  overflow-wrap: anywhere;
+}
+
 .reload-btn-shell {
   justify-self: end;
   width: 44px;
@@ -1733,12 +1812,14 @@ a {
   border: none;
   background: rgba(14, 14, 14, 0.96);
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.26);
+  overflow-wrap: anywhere;
 }
 
 .tooltip-word {
   font-size: 28px;
   letter-spacing: 0.02em;
   margin-bottom: 5px;
+  overflow-wrap: anywhere;
 }
 
 .tooltip-word {
@@ -1751,6 +1832,7 @@ a {
 .tooltip-typed {
   font-size: 22px;
   color: #888;
+  overflow-wrap: anywhere;
 }
 
 .tooltip-line {
@@ -1801,7 +1883,6 @@ a {
 .auth-toolbar-btn:hover,
 .user-menu-link:hover,
 .leaderboard-card-button:hover .leaderboard-username-display,
-.leaderboard-card-button:hover .leaderboard-rank,
 .history-delete-btn:hover:not(:disabled),
 .result-btn:hover,
 .language-trigger:hover,
@@ -1825,6 +1906,7 @@ a {
   margin-bottom: 20px;
   font-size: 26px;
   line-height: 1.8;
+  overflow-wrap: anywhere;
 }
 
 .replay-scrollable {
@@ -1832,6 +1914,12 @@ a {
   overflow-y: auto;
   overflow-x: hidden;
   text-overflow: clip;
+}
+
+.replay-text-content {
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .replay-word {
@@ -1855,13 +1943,28 @@ a {
 }
 
 @media (max-width: 760px) {
+  body {
+    font-size: 16px;
+  }
+
+  .app-frame {
+    padding: 18px 14px 28px;
+  }
+
+  .container {
+    padding: 10px 0 28px;
+  }
+
   .topbar {
     flex-direction: column;
     align-items: stretch;
+    gap: 14px;
   }
 
   .topbar-actions {
     flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 10px;
   }
 
   .auth-anchor,
@@ -1869,8 +1972,68 @@ a {
     justify-content: flex-start;
   }
 
+  .auth-toolbar {
+    flex-wrap: wrap;
+  }
+
+  .auth-toolbar-btn,
+  .history-link {
+    padding-left: 0;
+  }
+
+  .auth-popover {
+    position: fixed;
+    top: 72px;
+    left: 14px;
+    right: 14px;
+    width: auto;
+    max-height: calc(100vh - 88px);
+    overflow-y: auto;
+  }
+
+  .user-menu-popover {
+    position: fixed;
+    top: 72px;
+    right: 14px;
+    left: auto;
+    width: min(260px, calc(100vw - 28px));
+    min-width: 0;
+    max-width: calc(100vw - 28px);
+  }
+
   .brand-link {
     font-size: 26px;
+  }
+
+  .auth-status,
+  .history-link,
+  .auth-toolbar-btn,
+  .user-menu-link,
+  .settings-label,
+  .settings-option,
+  .settings-select-button,
+  .settings-slider-value,
+  .settings-note,
+  .help-label,
+  .help-item,
+  .page-muted,
+  .profile-email,
+  .mini-training-date,
+  .mini-training-meta,
+  .leaderboard-best-meta,
+  .history-personal-badge {
+    font-size: 14px;
+  }
+
+  .page-card,
+  .leaderboard-modal,
+  .confirm-modal {
+    padding: 18px;
+  }
+
+  .profile-user-text-header {
+    flex-direction: column;
+    align-items: flex-start;
   }
 
   .history-card-top {
@@ -1882,8 +2045,102 @@ a {
     grid-template-columns: 1fr;
   }
 
+  .leaderboard-card {
+    padding: 16px 12px;
+  }
+
+  .leaderboard-stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+    width: 100%;
+  }
+
+  .stat-badge {
+    min-width: 0;
+    width: 100%;
+    padding: 8px 6px;
+    border-radius: 12px;
+  }
+
+  .stat-badge-label {
+    font-size: 8px;
+    letter-spacing: 0.08em;
+  }
+
+  .stat-badge-value-row {
+    gap: 3px;
+    min-width: 0;
+  }
+
+  .stat-badge-value,
+  .leaderboard-meta-value {
+    font-size: clamp(12px, 3.2vw, 15px);
+    line-height: 1;
+    min-width: 0;
+  }
+
+  .stat-badge-suffix {
+    font-size: 8px;
+    letter-spacing: 0.02em;
+  }
+
+  .leaderboard-meta-value,
+  .stat-badge-value,
+  .stat-badge-suffix {
+    white-space: nowrap;
+  }
+
   .leaderboard-profile-hero {
     align-items: flex-start;
+    gap: 14px;
+    padding-right: 40px;
+  }
+
+  .leaderboard-username-display,
+  .history-card-date {
+    font-size: clamp(18px, 5vw, 22px);
+  }
+
+  .history-text-preview {
+    font-size: 16px;
+    line-height: 1.45;
+  }
+
+  .leaderboard-modal-backdrop,
+  .confirm-modal-backdrop {
+    padding: 14px;
+    align-items: flex-end;
+  }
+
+  .leaderboard-modal {
+    max-height: 90vh;
+    border-radius: 24px 24px 0 0;
+    padding-top: 24px;
+  }
+
+  .leaderboard-modal-close {
+    top: 10px;
+    right: 10px;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border: none;
+    border-radius: 999px;
+    background: transparent;
+    box-shadow: none;
+    outline: none;
+  }
+
+  .leaderboard-profile-copy {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .leaderboard-profile-copy h2,
+  .leaderboard-username {
+    padding-right: 14px;
+    overflow-wrap: anywhere;
   }
 
   .chart-container-large {
@@ -1897,6 +2154,14 @@ a {
 
   .text-scroll-result {
     width: 100%;
+  }
+
+  .history-detail-replay {
+    min-height: calc(1.45em * 5 + 32px) !important;
+    max-height: min(78dvh, 1100px) !important;
+    font-size: 18px !important;
+    line-height: 1.45 !important;
+    padding: 16px !important;
   }
 
   .settings-popover {
@@ -1933,6 +2198,85 @@ a {
 
   .trainer-help {
     display: none;
+  }
+
+  .text {
+    font-size: 26px;
+    line-height: 1.7;
+  }
+
+  .text-scroll-trainer {
+    max-height: calc(1.7em * 8 + 32px);
+    padding: 16px;
+  }
+
+  .trainer-lock-overlay {
+    padding: 18px;
+  }
+
+  .trainer-lock-title {
+    font-size: 18px;
+  }
+
+  .result-screen {
+    height: 100dvh;
+    justify-content: flex-start;
+    overflow-y: auto;
+    padding: 22px 14px 28px;
+  }
+
+  .result-screen > h1 {
+    margin-bottom: 16px;
+    font-size: clamp(24px, 7vw, 32px);
+  }
+
+  .stat-showcase {
+    width: 100%;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .stat-card {
+    padding: 14px;
+  }
+
+  .stat-value {
+    font-size: clamp(26px, 8vw, 36px);
+  }
+
+  .stat-value-small {
+    font-size: clamp(20px, 5.6vw, 26px);
+  }
+
+  .stat-badge {
+    min-width: 0;
+    padding: 10px;
+  }
+
+  .stat-badge-value {
+    font-size: 22px;
+  }
+
+  .replay {
+    font-size: 20px;
+    line-height: 1.6;
+  }
+
+  .chart-tooltip {
+    font-size: 15px;
+  }
+
+  .chart-tooltip-inline {
+    min-width: 0;
+    max-width: min(260px, calc(100vw - 28px));
+  }
+
+  .tooltip-word {
+    font-size: 22px;
+  }
+
+  .tooltip-typed {
+    font-size: 17px;
   }
 
   .stat-showcase,

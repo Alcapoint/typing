@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useHistory, useParams } from "react-router-dom";
-import api from "./api";
-import ResultScreen from "./ResultScreen";
+import api from "../../api";
+import ResultScreen from "../../components/result/ResultScreen";
 
 function TrainingDetailPage({ currentUser }) {
   const { id } = useParams();
@@ -56,10 +56,12 @@ function TrainingDetailPage({ currentUser }) {
     <ResultScreen
       title={training.is_personal_text ? "История тренировки • Свой текст" : "История тренировки"}
       words={training.words}
+      replayText={training.training_text}
       totalTime={Number(training.total_time || 0)}
       wpm={training.speed}
       accuracy={training.accuracy}
       replayMaxLines={5}
+      replayClassName="history-detail-replay"
       primaryActionLabel="Повторить тренировку"
       onPrimaryAction={handleRepeat}
       secondaryActionLabel="К истории"

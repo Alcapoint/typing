@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import TrainingInteractiveChart from "./TrainingInteractiveChart";
+import TrainingInteractiveChart from "../charts/TrainingInteractiveChart";
 
 function ResultScreen({
   title = "Результат",
   words,
+  replayText = "",
   totalTime,
   wpm,
   accuracy,
   replayMaxLines = 6,
+  replayClassName = "",
   primaryActionLabel,
   onPrimaryAction,
   secondaryActionLabel,
@@ -94,12 +96,15 @@ function ResultScreen({
           "text-scroll",
           "text-scroll-result",
           "replay-scrollable",
+          replayClassName,
         ].join(" ")}
         style={{
           maxHeight: `calc(1.8em * ${replayMaxLines} + 36px)`,
         }}
       >
-        {words.map((word, index) => renderReplayWord(word, index))}
+        {replayText
+          ? <div className="replay-text-content">{replayText}</div>
+          : words.map((word, index) => renderReplayWord(word, index))}
       </div>
 
       <TrainingInteractiveChart words={words} className="chart-container-large" />

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import api from "./api";
-import TrainingInteractiveChart from "./TrainingInteractiveChart";
-import { formatDateTime } from "./utils/date";
+import api from "../../api";
+import TrainingInteractiveChart from "../../components/charts/TrainingInteractiveChart";
+import { formatDateTime } from "../../utils/date";
 
 function getDisplayName(item) {
   const fullName = [item.first_name, item.last_name].filter(Boolean).join(" ").trim();
@@ -15,6 +15,17 @@ function StatBadge({ label, value, suffix, accent = false }) {
       <div className="stat-badge-value-row">
         <strong className="stat-badge-value">{value}</strong>
         {suffix ? <span className="stat-badge-suffix">{suffix}</span> : null}
+      </div>
+    </div>
+  );
+}
+
+function LeaderboardMetaBadge({ label, value, accent = false }) {
+  return (
+    <div className={`stat-badge ${accent ? "stat-badge-accent" : ""}`}>
+      <span className="stat-badge-label">{label}</span>
+      <div className="stat-badge-value-row">
+        <strong className="stat-badge-value leaderboard-meta-value">{value}</strong>
       </div>
     </div>
   );
@@ -218,17 +229,16 @@ function LeaderboardPage() {
                 type="button"
                 onClick={() => setSelectedUserId(item.user_id)}
               >
-                <div className="leaderboard-rank">#{index + 1}</div>
-
                 <div className="leaderboard-main">
-                  <div className="leaderboard-name-row">
-                    <h3 className="leaderboard-username-display">@{item.username}</h3>
-                  </div>
-
                   <div className="leaderboard-stats">
+                    <LeaderboardMetaBadge label="Place" value={`#${index + 1}`} />
+                    <LeaderboardMetaBadge label="User" value={`@${item.username}`} accent />
                     <StatBadge label="Speed" value={item.speed} suffix="WPM" accent />
                     <StatBadge label="Accuracy" value={item.accuracy} suffix="%" />
-                    <StatBadge label="Date" value={formatDateTime(item.date)} />
+                  </div>
+
+                  <div className="leaderboard-name-row">
+                    <span className="leaderboard-date-chip">{formatDateTime(item.date)}</span>
                   </div>
                 </div>
               </button>

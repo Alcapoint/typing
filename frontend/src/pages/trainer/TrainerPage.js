@@ -1,183 +1,32 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import api from "./api";
-import ResultScreen from "./ResultScreen";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import api from "../../api";
+import ResultScreen from "../../components/result/ResultScreen";
+import {
+  DEFAULT_HELP_SECTIONS,
+  DEFAULT_LANGUAGES,
+  TEXT_SIZE_CONFIG,
+  TEXT_TYPES,
+  TIME_LIMITS,
+  TRAINING_MODES,
+} from "../../configs/trainer";
+import TrainerSettingsSelectRow from "./components/TrainerSettingsSelectRow";
+import TrainerTextPanel from "./components/TrainerTextPanel";
+import {
+  getAdjustedTotalTime,
+  getAppendSize,
+  getAutoSizeLabel,
+  getCompletedWordCount,
+  getOptionLabel,
+  getRequestedTextSize,
+  getSourceWordRanges,
+  getTextSizeConfig,
+  getTextSizeLabel,
+  getTypedErrorCount,
+  getWordErrorCount,
+  getWordSpeedMetrics,
+} from "./trainerHelpers";
 
-const TEXT_TYPES = [
-  { value: "quote", label: "Цитата" },
-  { value: "custom", label: "Кастомный" },
-  { value: "nonsense", label: "Несуществующие слова" },
-  { value: "words", label: "Случайные слова" },
-  { value: "user", label: "Свой текст" },
-];
-
-const TRAINING_MODES = [
-  { value: "standard", label: "Обычный" },
-  { value: "time", label: "На время" },
-  { value: "mistake", label: "До ошибки" },
-];
-
-const TIME_LIMITS = [
-  { value: 15, label: "15 сек" },
-  { value: 30, label: "30 сек" },
-  { value: 60, label: "60 сек" },
-  { value: 120, label: "120 сек" },
-];
-
-const WORDS_PER_15_SECONDS = 25;
-
-const TEXT_SIZE_CONFIG = {
-  quote: {
-    min: 25,
-    max: 200,
-    step: 25,
-    defaultValue: 25,
-    forms: ["слово", "слова", "слов"],
-  },
-  custom: {
-    min: 20,
-    max: 140,
-    step: 10,
-    defaultValue: 40,
-    forms: ["слово", "слова", "слов"],
-  },
-  nonsense: {
-    min: 20,
-    max: 140,
-    step: 10,
-    defaultValue: 40,
-    forms: ["слово", "слова", "слов"],
-  },
-  words: {
-    min: 20,
-    max: 140,
-    step: 10,
-    defaultValue: 40,
-    forms: ["слово", "слова", "слов"],
-  },
-};
-
-const MISTAKE_MODE_SIZES = {
-  quote: 160,
-  default: 160,
-};
-
-const APPEND_TEXT_SIZES = {
-  quote: WORDS_PER_15_SECONDS,
-  default: 80,
-};
-
-const MIN_WORD_DURATION_SECONDS = 0.5;
-const DEFAULT_LANGUAGES = [
-  {
-    code: "ru",
-    name: "Russian",
-    native_name: "Русский",
-    flag_emoji: "🇷🇺",
-  },
-  {
-    code: "en",
-    name: "English",
-    native_name: "English",
-    flag_emoji: "🇬🇧",
-  },
-];
-
-const DEFAULT_HELP_SECTIONS = [
-  {
-    title: "Горячие клавиши",
-    items: [
-      "Tab — загрузить новый текст",
-      "Enter — завершить тренировку досрочно",
-      "Esc — закрыть открытые меню",
-    ],
-  },
-  {
-    title: "Метрики",
-    items: [
-      "WPM — скорость в словах в минуту",
-      "CPM — скорость в символах в минуту",
-      "Accuracy — процент правильно набранных символов",
-      "Time — общее время прохождения текста",
-    ],
-  },
-  {
-    title: "Подсказки",
-    items: [
-      "Шестерёнка открывает настройки языка, вида текста и режима",
-      "В режиме На время текст автоматически продолжается дальше",
-      "Клик по странице возвращает фокус в поле ввода",
-    ],
-  },
-];
-
-const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
-
-const getOptionLabel = (options, value) => (
-  options.find((option) => option.value === value)?.label || String(value)
-);
-
-const getPluralForm = (value, forms) => {
-  const absValue = Math.abs(value) % 100;
-  const lastDigit = absValue % 10;
-
-  if (absValue > 10 && absValue < 20) {
-    return forms[2];
-  }
-  if (lastDigit > 1 && lastDigit < 5) {
-    return forms[1];
-  }
-  if (lastDigit === 1) {
-    return forms[0];
-  }
-  return forms[2];
-};
-
-const getTextSizeConfig = (textType) => (
-  TEXT_SIZE_CONFIG[textType] || TEXT_SIZE_CONFIG.custom
-);
-
-const getLockedTextSize = (textType, trainingMode, timeLimitSeconds) => {
-  if (trainingMode === "time") {
-    return Math.round((timeLimitSeconds / 15) * WORDS_PER_15_SECONDS);
-  }
-
-  if (trainingMode === "mistake") {
-    return textType === "quote"
-      ? MISTAKE_MODE_SIZES.quote
-      : MISTAKE_MODE_SIZES.default;
-  }
-
-  return getTextSizeConfig(textType).defaultValue;
-};
-
-const getRequestedTextSize = (
-  textType,
-  trainingMode,
-  textSize,
-  timeLimitSeconds
-) => {
-  if (trainingMode !== "standard") {
-    return getLockedTextSize(textType, trainingMode, timeLimitSeconds);
-  }
-
-  const config = getTextSizeConfig(textType);
-  return clamp(textSize, config.min, config.max);
-};
-
-const getAppendSize = (textType) => (
-  textType === "quote" ? APPEND_TEXT_SIZES.quote : APPEND_TEXT_SIZES.default
-);
-
-const getTextSizeLabel = (textType, size) => {
-  const { forms } = getTextSizeConfig(textType);
-  return `≈ ${size} ${getPluralForm(size, forms)}`;
-};
-
-const getAutoSizeLabel = (textType, size) => {
-  return `≈ ${size} ${getPluralForm(size, ["слово", "слова", "слов"])}`;
-};
-
-function TrainerPage({ currentUser, isLoggedIn, replayTraining }) {
+function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replayTraining }) {
   const [selectedTextType, setSelectedTextType] = useState("quote");
   const [userTexts, setUserTexts] = useState([]);
   const [selectedUserTextId, setSelectedUserTextId] = useState(null);
@@ -202,7 +51,6 @@ function TrainerPage({ currentUser, isLoggedIn, replayTraining }) {
   const [input, setInput] = useState("");
   const [startTime, setStartTime] = useState(null);
   const [wpm, setWpm] = useState(0);
-  const [cpm, setCpm] = useState(0);
   const [accuracy, setAccuracy] = useState(100);
   const [finished, setFinished] = useState(false);
   const [wordStats, setWordStats] = useState([]);
@@ -227,6 +75,7 @@ function TrainerPage({ currentUser, isLoggedIn, replayTraining }) {
     textSize,
     timeLimitSeconds
   );
+  const isTrainerLocked = isMobileViewport;
   const availableTextTypes = isLoggedIn
     ? TEXT_TYPES
     : TEXT_TYPES.filter((type) => type.value !== "user");
@@ -242,7 +91,6 @@ function TrainerPage({ currentUser, isLoggedIn, replayTraining }) {
     setStartTime(null);
     setFinished(false);
     setWpm(0);
-    setCpm(0);
     setAccuracy(100);
     setWordStats([]);
     setCurrentWordStart(null);
@@ -261,7 +109,7 @@ function TrainerPage({ currentUser, isLoggedIn, replayTraining }) {
     }
   };
 
-  const buildTextRequestConfig = (overrides = {}) => {
+  const buildTextRequestConfig = useCallback((overrides = {}) => {
     const requestTextType = overrides.textType ?? selectedTextType;
     const requestMode = overrides.trainingMode ?? trainingMode;
     const requestTimeLimit = overrides.timeLimitSeconds ?? timeLimitSeconds;
@@ -292,9 +140,18 @@ function TrainerPage({ currentUser, isLoggedIn, replayTraining }) {
           ? overrides.includeCapitals ?? includeCapitals
           : undefined,
     };
-  };
+  }, [
+    includeCapitals,
+    includePunctuation,
+    selectedLanguage,
+    selectedTextType,
+    selectedUserTextId,
+    textSize,
+    timeLimitSeconds,
+    trainingMode,
+  ]);
 
-  const loadText = (overrides = {}) => {
+  const loadText = useCallback((overrides = {}) => {
     if ((overrides.textType ?? selectedTextType) === "user" && !(overrides.userTextId ?? selectedUserTextId)) {
       setText("");
       setInput("");
@@ -333,7 +190,7 @@ function TrainerPage({ currentUser, isLoggedIn, replayTraining }) {
           setIsTextLoading(false);
         }
       });
-  };
+  }, [buildTextRequestConfig, selectedTextType, selectedUserTextId]);
 
   const appendTextChunk = () => {
     if (appendInFlightRef.current || trainingMode !== "time") {
@@ -457,14 +314,16 @@ function TrainerPage({ currentUser, isLoggedIn, replayTraining }) {
     localStorage.setItem("trainer-language", selectedLanguage);
     loadText();
   }, [
+    includeCapitals,
+    includePunctuation,
+    isLoggedIn,
+    loadText,
+    requestedTextSize,
     selectedLanguage,
     selectedTextType,
     selectedUserTextId,
-    trainingMode,
     timeLimitSeconds,
-    requestedTextSize,
-    includePunctuation,
-    includeCapitals,
+    trainingMode,
   ]);
 
   useEffect(() => {
@@ -485,10 +344,10 @@ function TrainerPage({ currentUser, isLoggedIn, replayTraining }) {
   }, []);
 
   useEffect(() => {
-    if (text) {
+    if (text && !isTrainerLocked) {
       inputRef.current?.focus();
     }
-  }, [text]);
+  }, [isTrainerLocked, text]);
 
   useEffect(() => {
     if (!startTime || finished) {
@@ -503,24 +362,6 @@ function TrainerPage({ currentUser, isLoggedIn, replayTraining }) {
     const intervalId = setInterval(tick, 100);
     return () => clearInterval(intervalId);
   }, [finished, startTime]);
-
-  useEffect(() => {
-    if (
-      trainingMode !== "time"
-      || !startTime
-      || finished
-      || elapsedSeconds < timeLimitSeconds
-    ) {
-      return;
-    }
-
-    if (finishTimeout.current) {
-      clearTimeout(finishTimeout.current);
-      finishTimeout.current = null;
-    }
-
-    finalizeTest(input);
-  }, [elapsedSeconds, finished, input, startTime, timeLimitSeconds, trainingMode]);
 
   useEffect(() => {
     if (replayTraining?.training_text) {
@@ -542,7 +383,7 @@ function TrainerPage({ currentUser, isLoggedIn, replayTraining }) {
     }
   }, [replayTraining]);
 
-  const getCurrentWordIndex = () => {
+  const getCurrentWordIndex = useCallback(() => {
     if (!wordsRef.current.length) {
       return 0;
     }
@@ -551,7 +392,7 @@ function TrainerPage({ currentUser, isLoggedIn, replayTraining }) {
       input.split(" ").length - 1,
       wordsRef.current.length - 1
     );
-  };
+  }, [input]);
 
   useLayoutEffect(() => {
     const scrollContainer = trainerTextRef.current;
@@ -607,9 +448,9 @@ function TrainerPage({ currentUser, isLoggedIn, replayTraining }) {
     return () => {
       window.cancelAnimationFrame(rafId);
     };
-  }, [input, text]);
+  }, [getCurrentWordIndex, input, text]);
 
-  const persistResult = (finalWords, totalTimeValue, finalSpeed, finalAccuracy) => {
+  const persistResult = useCallback((finalWords, totalTimeValue, finalSpeed, finalAccuracy) => {
     if (!isLoggedIn) {
       return;
     }
@@ -624,82 +465,9 @@ function TrainerPage({ currentUser, isLoggedIn, replayTraining }) {
       is_personal_text: selectedTextType === "user",
       words: finalWords,
     }).catch(() => null);
-  };
+  }, [isLoggedIn, selectedLanguage, selectedTextType, selectedUserTextId, text]);
 
-  const getAdjustedTotalTime = (seconds, compensateCompletionDelay = false) => (
-    Math.max(0, seconds - (compensateCompletionDelay ? 1 : 0))
-  );
-
-  const getWordsFromValue = (value) => (
-    value.trim().length ? value.trim().split(/\s+/) : []
-  );
-
-  const getCompletedWordCount = (value) => {
-    const typedWords = getWordsFromValue(value);
-
-    if (!typedWords.length) {
-      return 0;
-    }
-
-    return value.endsWith(" ")
-      ? typedWords.length
-      : Math.max(typedWords.length - 1, 0);
-  };
-
-  const getTypedErrorCount = (value) => {
-    let mismatchCount = 0;
-
-    for (let index = 0; index < value.length; index += 1) {
-      if (value[index] !== text[index]) {
-        mismatchCount += 1;
-      }
-    }
-
-    return mismatchCount;
-  };
-
-  const getWordErrorCount = (correctWord = "", typedWord = "") => {
-    const maxLength = Math.max(correctWord.length, typedWord.length);
-    let mismatchCount = 0;
-
-    for (let index = 0; index < maxLength; index += 1) {
-      if ((correctWord[index] || "") !== (typedWord[index] || "")) {
-        mismatchCount += 1;
-      }
-    }
-
-    return mismatchCount;
-  };
-
-  const getSafeWordDuration = (duration) => Math.max(duration, MIN_WORD_DURATION_SECONDS);
-
-  const getWordSpeedMetrics = (correctWord = "", typedWord = "", duration = 0) => {
-    const safeDuration = getSafeWordDuration(duration);
-    const baseCharsCount = Math.max(correctWord.length, typedWord.length, 1);
-    const minutes = safeDuration / 60;
-
-    return {
-      wpm: Math.round((baseCharsCount / 5) / minutes),
-      cpm: Math.round(baseCharsCount / minutes),
-    };
-  };
-
-  const getSourceWordRanges = () => {
-    let cursor = 0;
-
-    return wordsRef.current.map((word) => {
-      const range = {
-        correct: word,
-        start: cursor,
-        end: cursor + word.length,
-      };
-
-      cursor += word.length + 1;
-      return range;
-    });
-  };
-
-  function finalizeTest(value, options = {}) {
+  const finalizeTest = useCallback((value, options = {}) => {
     if (finished) {
       return;
     }
@@ -707,7 +475,7 @@ function TrainerPage({ currentUser, isLoggedIn, replayTraining }) {
     const now = Date.now();
     const sessionStartTime = options.startedAt ?? startTime;
     const activeWordStart = options.currentWordStartedAt ?? currentWordStart;
-    const sourceWordRanges = getSourceWordRanges();
+    const sourceWordRanges = getSourceWordRanges(wordsRef.current);
     const typedWordRanges = sourceWordRanges.filter(({ start }) => start < value.length);
     const finalWords = typedWordRanges.map(({ correct, start, end }, index) => {
       const typedWord = value.slice(start, Math.min(end, value.length));
@@ -738,7 +506,7 @@ function TrainerPage({ currentUser, isLoggedIn, replayTraining }) {
     const totalTimeValue = trainingMode === "time"
       ? Math.min(rawTotalTime, timeLimitSeconds)
       : getAdjustedTotalTime(rawTotalTime, options.compensateCompletionDelay);
-    const typedErrors = getTypedErrorCount(value);
+    const typedErrors = getTypedErrorCount(value, text);
     const finalSpeed = totalTimeValue
       ? Math.round((value.length / 5) / (totalTimeValue / 60))
       : 0;
@@ -747,17 +515,42 @@ function TrainerPage({ currentUser, isLoggedIn, replayTraining }) {
       : 100;
 
     setWpm(finalSpeed);
-    setCpm(totalTimeValue ? Math.round(value.length / (totalTimeValue / 60)) : 0);
     setAccuracy(finalAccuracy);
     setElapsedSeconds(rawTotalTime);
     setTotalTime(totalTimeValue);
     setWordStats(finalWords);
     setFinished(true);
     persistResult(finalWords, totalTimeValue, finalSpeed, finalAccuracy);
-  }
+  }, [
+    currentWordStart,
+    finished,
+    persistResult,
+    startTime,
+    text,
+    timeLimitSeconds,
+    trainingMode,
+  ]);
+
+  useEffect(() => {
+    if (
+      trainingMode !== "time"
+      || !startTime
+      || finished
+      || elapsedSeconds < timeLimitSeconds
+    ) {
+      return;
+    }
+
+    if (finishTimeout.current) {
+      clearTimeout(finishTimeout.current);
+      finishTimeout.current = null;
+    }
+
+    finalizeTest(input);
+  }, [elapsedSeconds, finalizeTest, finished, input, startTime, timeLimitSeconds, trainingMode]);
 
   const updateLiveMetrics = (value, currentStartTime) => {
-    const typedErrors = getTypedErrorCount(value);
+    const typedErrors = getTypedErrorCount(value, text);
     const nextAccuracy = value.length
       ? Number((((value.length - typedErrors) / value.length) * 100).toFixed(1))
       : 100;
@@ -769,15 +562,13 @@ function TrainerPage({ currentUser, isLoggedIn, replayTraining }) {
       const nextWpm = (value.length / 5) / elapsedMinutes || 0;
 
       setWpm(Math.round(nextWpm));
-      setCpm(Math.round(value.length / elapsedMinutes));
     } else {
       setWpm(0);
-      setCpm(0);
     }
   };
 
   const handleChange = (event) => {
-    if (finished) {
+    if (finished || isTrainerLocked) {
       return;
     }
 
@@ -854,6 +645,10 @@ function TrainerPage({ currentUser, isLoggedIn, replayTraining }) {
   };
 
   const handleKeyDown = (event) => {
+    if (isTrainerLocked) {
+      return;
+    }
+
     if (event.key === "Tab") {
       event.preventDefault();
       loadText();
@@ -882,6 +677,10 @@ function TrainerPage({ currentUser, isLoggedIn, replayTraining }) {
   };
 
   const handleContainerClick = (event) => {
+    if (isTrainerLocked) {
+      return;
+    }
+
     if (
       event.target.closest(".auth-anchor")
       || event.target.closest(".trainer-settings")
@@ -973,47 +772,6 @@ function TrainerPage({ currentUser, isLoggedIn, replayTraining }) {
     return `${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
   };
 
-  const renderSettingsSelectRow = ({
-    field,
-    label,
-    valueLabel,
-    options,
-    selectedValue,
-    onSelect,
-  }) => (
-    <div className="settings-row">
-      <span className="settings-label">{label}</span>
-      <div className="settings-field">
-        <button
-          className="settings-select-button"
-          type="button"
-          onClick={() => {
-            setOpenSettingsField((prev) => (prev === field ? "" : field));
-          }}
-        >
-          <span>{valueLabel}</span>
-          <span className={`settings-select-caret ${openSettingsField === field ? "open" : ""}`}>⌄</span>
-        </button>
-
-        <div className={`settings-options ${openSettingsField === field ? "open" : ""}`}>
-          {options.map((option) => (
-            <button
-              key={String(option.value)}
-              className={`settings-option ${selectedValue === option.value ? "active" : ""}`}
-              type="button"
-              onClick={() => {
-                onSelect(option.value);
-                setOpenSettingsField("");
-              }}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-
   const shouldShowTimer = !finished && (Boolean(startTime) || trainingMode === "time");
   const timerValue = trainingMode === "time"
     ? startTime
@@ -1034,6 +792,15 @@ function TrainerPage({ currentUser, isLoggedIn, replayTraining }) {
       />
     );
   }
+
+  const toggleSettingsField = (field) => {
+    setOpenSettingsField((prev) => (prev === field ? "" : field));
+  };
+
+  const handleSettingsSelect = (onSelect) => (value) => {
+    onSelect(value);
+    setOpenSettingsField("");
+  };
 
   return (
     <div className="container" onClick={handleContainerClick}>
@@ -1077,33 +844,37 @@ function TrainerPage({ currentUser, isLoggedIn, replayTraining }) {
               ))}
             </div>
 
-            {selectedTextType !== "user" ? renderSettingsSelectRow({
-              field: "language",
-              label: "Язык",
-              valueLabel: `${languages.find((language) => language.code === selectedLanguage)?.flag_emoji || "🌐"} ${languages.find((language) => language.code === selectedLanguage)?.native_name || selectedLanguage}`,
-              options: languages.map((language) => ({
-                value: language.code,
-                label: `${language.flag_emoji} ${language.native_name}`,
-              })),
-              selectedValue: selectedLanguage,
-              onSelect: (value) => {
-                setSelectedLanguage(value);
-              },
-            }) : null}
+            {selectedTextType !== "user" ? (
+              <TrainerSettingsSelectRow
+                field="language"
+                label="Язык"
+                valueLabel={`${languages.find((language) => language.code === selectedLanguage)?.flag_emoji || "🌐"} ${languages.find((language) => language.code === selectedLanguage)?.native_name || selectedLanguage}`}
+                options={languages.map((language) => ({
+                  value: language.code,
+                  label: `${language.flag_emoji} ${language.native_name}`,
+                }))}
+                selectedValue={selectedLanguage}
+                openField={openSettingsField}
+                onToggle={toggleSettingsField}
+                onSelect={handleSettingsSelect(setSelectedLanguage)}
+              />
+            ) : null}
 
-            {selectedTextType === "user" ? renderSettingsSelectRow({
-              field: "userText",
-              label: "Текст",
-              valueLabel: userTexts.find((item) => item.id === selectedUserTextId)?.title || "Выберите текст",
-              options: userTexts.map((item) => ({
-                value: item.id,
-                label: item.title,
-              })),
-              selectedValue: selectedUserTextId,
-              onSelect: (value) => {
-                setSelectedUserTextId(value);
-              },
-            }) : null}
+            {selectedTextType === "user" ? (
+              <TrainerSettingsSelectRow
+                field="userText"
+                label="Текст"
+                valueLabel={userTexts.find((item) => item.id === selectedUserTextId)?.title || "Выберите текст"}
+                options={userTexts.map((item) => ({
+                  value: item.id,
+                  label: item.title,
+                }))}
+                selectedValue={selectedUserTextId}
+                openField={openSettingsField}
+                onToggle={toggleSettingsField}
+                onSelect={handleSettingsSelect(setSelectedUserTextId)}
+              />
+            ) : null}
 
             {selectedTextType === "user" && !userTexts.length ? (
               <div className="settings-row settings-row-note">
@@ -1146,27 +917,29 @@ function TrainerPage({ currentUser, isLoggedIn, replayTraining }) {
               </>
             ) : null}
 
-            {renderSettingsSelectRow({
-              field: "mode",
-              label: "Режим",
-              valueLabel: getOptionLabel(TRAINING_MODES, trainingMode),
-              options: TRAINING_MODES,
-              selectedValue: trainingMode,
-              onSelect: (value) => {
-                setTrainingMode(value);
-              },
-            })}
+            <TrainerSettingsSelectRow
+              field="mode"
+              label="Режим"
+              valueLabel={getOptionLabel(TRAINING_MODES, trainingMode)}
+              options={TRAINING_MODES}
+              selectedValue={trainingMode}
+              openField={openSettingsField}
+              onToggle={toggleSettingsField}
+              onSelect={handleSettingsSelect(setTrainingMode)}
+            />
 
-            {trainingMode === "time" && renderSettingsSelectRow({
-              field: "timeLimit",
-              label: "Время",
-              valueLabel: getOptionLabel(TIME_LIMITS, timeLimitSeconds),
-              options: TIME_LIMITS,
-              selectedValue: timeLimitSeconds,
-              onSelect: (value) => {
-                setTimeLimitSeconds(value);
-              },
-            })}
+            {trainingMode === "time" ? (
+              <TrainerSettingsSelectRow
+                field="timeLimit"
+                label="Время"
+                valueLabel={getOptionLabel(TIME_LIMITS, timeLimitSeconds)}
+                options={TIME_LIMITS}
+                selectedValue={timeLimitSeconds}
+                openField={openSettingsField}
+                onToggle={toggleSettingsField}
+                onSelect={handleSettingsSelect(setTimeLimitSeconds)}
+              />
+            ) : null}
 
             {trainingMode === "standard" && selectedTextType !== "user" ? (
               <div className="settings-row settings-row-slider">
@@ -1262,13 +1035,13 @@ function TrainerPage({ currentUser, isLoggedIn, replayTraining }) {
         </div>
       </div>
 
-      <div className="text text-scroll text-scroll-trainer" ref={trainerTextRef}>
-        {isTextLoading
-          ? ""
-          : textError
-            ? textError
-            : renderText()}
-      </div>
+      <TrainerTextPanel
+        isLocked={isTrainerLocked}
+        isTextLoading={isTextLoading}
+        textError={textError}
+        trainerTextRef={trainerTextRef}
+        renderText={renderText}
+      />
 
       <textarea
         ref={inputRef}
@@ -1276,6 +1049,7 @@ function TrainerPage({ currentUser, isLoggedIn, replayTraining }) {
         onChange={handleChange}
         onKeyDown={handleKeyDown}
         className="hidden-input"
+        disabled={isTrainerLocked}
       />
     </div>
   );
