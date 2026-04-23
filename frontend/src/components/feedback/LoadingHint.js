@@ -9,10 +9,10 @@ const LOADING_HINTS = [
 ];
 
 const SERVICE_SYMBOLS = ["#", "@", "%", "&", "*", "+", "=", "?", "/", "\\", "[", "]", "{", "}", "!", "~"];
-const SYMBOL_FILL_DURATION_MS = 500;
-const LETTER_REVEAL_DURATION_MS = 500;
+const SYMBOL_FILL_DURATION_MS = 200;
+const LETTER_REVEAL_DURATION_MS = 200;
 const HINT_DISPLAY_DURATION_MS = 2000;
-const CYCLE_DURATION_MS =
+const ANIMATED_CYCLE_DURATION_MS =
   SYMBOL_FILL_DURATION_MS + LETTER_REVEAL_DURATION_MS + HINT_DISPLAY_DURATION_MS;
 
 function getRandomServiceSymbol() {
@@ -68,14 +68,15 @@ function LoadingHint({ className = "", variant = "block" }) {
   useEffect(() => {
     let isDisposed = false;
 
-    const runCycle = () => {
+    const runCycle = (showHintImmediately = false) => {
       const hintIndex = getRandomHintIndex(previousHintIndexRef.current);
       const hint = LOADING_HINTS[hintIndex];
       const revealOrder = createRevealOrder(hint.length);
       const startedAt = performance.now();
 
       previousHintIndexRef.current = hintIndex;
-      setIsFinalTextVisible(false);
+      setDisplayText(showHintImmediately ? hint : "");
+      setIsFinalTextVisible(showHintImmediately);
 
       const animate = (timestamp) => {
         if (isDisposed) {
@@ -83,17 +84,26 @@ function LoadingHint({ className = "", variant = "block" }) {
         }
 
         const elapsed = timestamp - startedAt;
+        const animationElapsed = showHintImmediately ? elapsed - HINT_DISPLAY_DURATION_MS : elapsed;
 
-        if (elapsed < SYMBOL_FILL_DURATION_MS) {
-          const progress = elapsed / SYMBOL_FILL_DURATION_MS;
-          const visibleCount = Math.min(hint.length, Math.ceil(progress * hint.length));
-          setDisplayText(buildSymbolFrame(hint.length, visibleCount));
+        if (showHintImmediately && elapsed < HINT_DISPLAY_DURATION_MS) {
+          setDisplayText(hint);
+          setIsFinalTextVisible(true);
           animationFrameRef.current = requestAnimationFrame(animate);
           return;
         }
 
-        if (elapsed < SYMBOL_FILL_DURATION_MS + LETTER_REVEAL_DURATION_MS) {
-          const progress = (elapsed - SYMBOL_FILL_DURATION_MS) / LETTER_REVEAL_DURATION_MS;
+        if (animationElapsed < SYMBOL_FILL_DURATION_MS) {
+          const progress = animationElapsed / SYMBOL_FILL_DURATION_MS;
+          const visibleCount = Math.min(hint.length, Math.ceil(progress * hint.length));
+          setDisplayText(buildSymbolFrame(hint.length, visibleCount));
+          setIsFinalTextVisible(false);
+          animationFrameRef.current = requestAnimationFrame(animate);
+          return;
+        }
+
+        if (animationElapsed < SYMBOL_FILL_DURATION_MS + LETTER_REVEAL_DURATION_MS) {
+          const progress = (animationElapsed - SYMBOL_FILL_DURATION_MS) / LETTER_REVEAL_DURATION_MS;
           const revealedCount = Math.min(hint.length, Math.ceil(progress * hint.length));
           setDisplayText(buildRevealFrame(hint, revealedCount, revealOrder));
           setIsFinalTextVisible(false);
@@ -101,20 +111,20 @@ function LoadingHint({ className = "", variant = "block" }) {
           return;
         }
 
-        if (elapsed < CYCLE_DURATION_MS) {
+        if (animationElapsed < ANIMATED_CYCLE_DURATION_MS) {
           setDisplayText(hint);
           setIsFinalTextVisible(true);
           animationFrameRef.current = requestAnimationFrame(animate);
           return;
         }
 
-        runCycle();
+        runCycle(false);
       };
 
       animationFrameRef.current = requestAnimationFrame(animate);
     };
 
-    runCycle();
+    runCycle(true);
 
     return () => {
       isDisposed = true;
