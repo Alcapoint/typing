@@ -1,13 +1,12 @@
 import { Link } from "react-router-dom";
 import Auth from "../auth/Auth";
+import BrandLogo from "./BrandLogo";
 
 function AppHeader({ currentUser, onLogin, onLogout }) {
   return (
     <div className="topbar">
       <div className="brand-block">
-        <Link className="brand-link" to="/">
-          Typing Trainer
-        </Link>
+        <BrandLogo />
       </div>
 
       <div className="topbar-actions">

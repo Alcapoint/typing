@@ -208,7 +208,7 @@ function Auth({ currentUser, onLogin, onLogout }) {
         <form className="auth-popover" onSubmit={handleSubmit}>
           <div className="auth-popover-header">
             <div>
-              <p className="auth-kicker">Typing Trainer</p>
+              <p className="auth-kicker">TYPE</p>
               <h2 className="auth-title">
                 {isRegister ? "Регистрация" : "Вход"}
               </h2>
