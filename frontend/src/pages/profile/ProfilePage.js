@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import api from "../../api";
+import LoadingHint from "../../components/feedback/LoadingHint";
 
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
@@ -242,7 +243,7 @@ function ProfilePage({ currentUser, onProfileUpdate }) {
         <div className="profile-avatar-actions">
           <label className="result-btn result-btn-secondary profile-upload-btn">
             <input type="file" accept="image/*" onChange={handleAvatarUpload} />
-            {isUploadingAvatar ? "Загрузка..." : "Загрузить аватар"}
+            {isUploadingAvatar ? <LoadingHint variant="button" /> : "Загрузить аватар"}
           </label>
 
           {currentUser.avatar ? (
@@ -261,7 +262,7 @@ function ProfilePage({ currentUser, onProfileUpdate }) {
         {message ? <p className="auth-message auth-success">{message}</p> : null}
 
         <button className="result-btn result-btn-primary" type="submit" disabled={isSaving}>
-          {isSaving ? "Сохраняем..." : "Сохранить профиль"}
+          {isSaving ? <LoadingHint variant="button" /> : "Сохранить профиль"}
         </button>
       </form>
 
@@ -292,7 +293,7 @@ function ProfilePage({ currentUser, onProfileUpdate }) {
 
           <div className="result-actions">
             <button className="result-btn result-btn-primary" type="submit" disabled={isSavingText}>
-              {isSavingText ? "Сохраняем..." : editingTextId ? "Сохранить текст" : "Добавить текст"}
+              {isSavingText ? <LoadingHint variant="button" /> : editingTextId ? "Сохранить текст" : "Добавить текст"}
             </button>
             {editingTextId ? (
               <button className="result-btn result-btn-secondary" type="button" onClick={resetTextForm}>

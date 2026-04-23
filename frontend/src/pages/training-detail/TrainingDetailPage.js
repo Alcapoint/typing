@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useHistory, useParams } from "react-router-dom";
 import api from "../../api";
+import LoadingHint from "../../components/feedback/LoadingHint";
 import ResultScreen from "../../components/result/ResultScreen";
 
 function TrainingDetailPage({ currentUser }) {
@@ -45,7 +46,11 @@ function TrainingDetailPage({ currentUser }) {
   }
 
   if (loading) {
-    return <div className="page-card">Загрузка тренировки...</div>;
+    return (
+      <div className="page-card">
+        <LoadingHint variant="page" />
+      </div>
+    );
   }
 
   if (error || !training) {

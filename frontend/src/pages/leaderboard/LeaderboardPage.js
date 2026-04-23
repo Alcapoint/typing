@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import api from "../../api";
 import TrainingInteractiveChart from "../../components/charts/TrainingInteractiveChart";
+import LoadingHint from "../../components/feedback/LoadingHint";
 import { formatDateTime } from "../../utils/date";
 
 function getDisplayName(item) {
@@ -71,7 +72,9 @@ function LeaderboardProfileModal({ detail, loading, onClose }) {
         </button>
 
         {loading ? (
-          <div className="page-card">Загрузка профиля участника...</div>
+          <div className="page-card">
+            <LoadingHint variant="page" />
+          </div>
         ) : detail ? (
           <>
             <div className="leaderboard-profile-hero">
@@ -201,7 +204,11 @@ function LeaderboardPage() {
   );
 
   if (loading) {
-    return <div className="page-card">Загрузка лидерборда...</div>;
+    return (
+      <div className="page-card">
+        <LoadingHint variant="page" />
+      </div>
+    );
   }
 
   if (error) {
@@ -230,9 +237,20 @@ function LeaderboardPage() {
                 onClick={() => setSelectedUserId(item.user_id)}
               >
                 <div className="leaderboard-main">
+                  <div className="leaderboard-card-header">
+                    <div className="leaderboard-card-avatar" aria-hidden="true">
+                      {item.avatar ? (
+                        <img src={item.avatar} alt="" />
+                      ) : (
+                        <span>{(item.username || "?").slice(0, 1).toUpperCase()}</span>
+                      )}
+                    </div>
+
+                    <p className="leaderboard-username-display">@{item.username}</p>
+                  </div>
+
                   <div className="leaderboard-stats">
                     <LeaderboardMetaBadge label="Place" value={`#${index + 1}`} />
-                    <LeaderboardMetaBadge label="User" value={`@${item.username}`} accent />
                     <StatBadge label="Speed" value={item.speed} suffix="WPM" accent />
                     <StatBadge label="Accuracy" value={item.accuracy} suffix="%" />
                   </div>

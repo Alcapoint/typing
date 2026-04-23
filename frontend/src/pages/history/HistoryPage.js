@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useHistory } from "react-router-dom";
 import api from "../../api";
 import TrainingMiniChart from "../../components/charts/TrainingMiniChart";
+import LoadingHint from "../../components/feedback/LoadingHint";
 import { formatDateTime } from "../../utils/date";
 
 function HistoryPage({ currentUser }) {
@@ -41,7 +42,11 @@ function HistoryPage({ currentUser }) {
   }
 
   if (loading) {
-    return <div className="page-card">Загрузка истории...</div>;
+    return (
+      <div className="page-card">
+        <LoadingHint variant="page" />
+      </div>
+    );
   }
 
   if (error) {
@@ -103,7 +108,7 @@ function HistoryPage({ currentUser }) {
                   }}
                   disabled={deletingId === item.id}
                 >
-                  {deletingId === item.id ? "Удаление..." : "Удалить"}
+                  {deletingId === item.id ? <LoadingHint variant="button" /> : "Удалить"}
                 </button>
               </div>
             </div>
@@ -175,7 +180,7 @@ function HistoryPage({ currentUser }) {
                     .finally(() => setDeletingId(null));
                 }}
               >
-                {deletingId === pendingDeleteItem.id ? "Удаление..." : "Удалить"}
+                {deletingId === pendingDeleteItem.id ? <LoadingHint variant="button" /> : "Удалить"}
               </button>
             </div>
           </div>
