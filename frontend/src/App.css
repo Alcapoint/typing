@@ -440,6 +440,10 @@ a {
     align-items: flex-start;
     flex-direction: column;
   }
+
+  .profile-email-header {
+    flex-direction: column;
+  }
 }
 
 .container {
@@ -751,6 +755,43 @@ a {
   gap: 12px;
 }
 
+.profile-country-field {
+  position: relative;
+}
+
+.profile-country-suggestions {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  z-index: 12;
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  background: rgba(20, 20, 20, 0.98);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.34);
+}
+
+.profile-country-option {
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  color: #f2f2f2;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.profile-country-option:hover,
+.profile-country-option:focus-visible {
+  background: rgba(255, 255, 255, 0.08);
+  outline: none;
+}
+
 .profile-avatar-actions {
   display: flex;
   gap: 12px;
@@ -767,6 +808,16 @@ a {
   inset: 0;
   opacity: 0;
   cursor: pointer;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 .profile-user-text-form {

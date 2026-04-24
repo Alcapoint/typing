@@ -1,10 +1,10 @@
-import { getAuthHeaders, request } from "../baseClient";
+import { getAuthHeaders, getToken, request } from "../baseClient";
 
-export function signin({ email, password }) {
+export function signin({ login, password }) {
   return request("/api/auth/token/login/", {
     method: "POST",
     body: JSON.stringify({
-      email,
+      login,
       password,
     }),
   });
@@ -13,26 +13,31 @@ export function signin({ email, password }) {
 export function signout() {
   return request("/api/auth/token/logout/", {
     method: "POST",
-    headers: getAuthHeaders(),
+    headers: getAuthHeaders({ optional: true }),
+    skipAuthRefresh: true,
   });
 }
 
-export function signup({ email, password, username, first_name, last_name }) {
+export function refreshSession() {
+  return request("/api/auth/token/refresh/", {
+    method: "POST",
+    headers: {
+      ...getAuthHeaders(),
+      "x-csrf-token": getToken() || "",
+    },
+    body: JSON.stringify({}),
+    skipAuthRefresh: true,
+  });
+}
+
+export function signup({ email, username, password, password_confirm }) {
   return request("/api/users/", {
     method: "POST",
     body: JSON.stringify({
       email,
-      password,
       username,
-      first_name,
-      last_name,
+      password,
+      password_confirm,
     }),
-  });
-}
-
-export function resetPassword({ email }) {
-  return request("/api/users/reset_password/", {
-    method: "POST",
-    body: JSON.stringify({ email }),
   });
 }

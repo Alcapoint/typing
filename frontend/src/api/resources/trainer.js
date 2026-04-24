@@ -5,6 +5,7 @@ export function saveTrainingResult({
   accuracy,
   total_time,
   training_text,
+  session_token,
   language_code,
   words,
   user_text_id,
@@ -12,12 +13,13 @@ export function saveTrainingResult({
 }) {
   return request("/api/result/", {
     method: "POST",
-    headers: getAuthHeaders({ optional: true }),
+    headers: getAuthHeaders(),
     body: JSON.stringify({
       speed,
       accuracy,
       total_time,
       training_text,
+      session_token,
       language_code,
       user_text_id,
       is_personal_text,
@@ -67,6 +69,7 @@ export function getTrainingText({
   includePunctuation,
   includeCapitals,
   userTextId,
+  sessionToken,
 }) {
   const params = new URLSearchParams({ language });
 
@@ -94,9 +97,40 @@ export function getTrainingText({
     params.set("user_text_id", String(userTextId));
   }
 
+  if (sessionToken) {
+    params.set("session_token", sessionToken);
+  }
+
   return request(`/api/text/?${params.toString()}`, {
     method: "GET",
     headers: getAuthHeaders({ optional: true }),
+  });
+}
+
+export function startTrainingSession(sessionToken) {
+  return request(`/api/training-sessions/${sessionToken}/start/`, {
+    method: "POST",
+    headers: getAuthHeaders({ optional: true }),
+  });
+}
+
+export function createReplayTrainingSession({
+  training_text,
+  language_code,
+  user_text_id,
+  is_personal_text,
+  mode,
+}) {
+  return request("/api/training-sessions/replay/", {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({
+      training_text,
+      language_code,
+      user_text_id,
+      is_personal_text,
+      mode,
+    }),
   });
 }
 

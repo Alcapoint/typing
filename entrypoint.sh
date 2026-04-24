@@ -24,6 +24,7 @@ else:
 "
 
 python manage.py migrate --noinput
+python manage.py cleanup_stale_records --noinput
 python manage.py collectstatic --noinput --clear
 
 if [ -n "$DJANGO_SUPERUSER_EMAIL" ] && [ -n "$DJANGO_SUPERUSER_PASSWORD" ] && [ -n "$DJANGO_SUPERUSER_USERNAME" ]; then

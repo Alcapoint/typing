@@ -61,7 +61,6 @@ function TrainingDetailPage({ currentUser }) {
     <ResultScreen
       title={training.is_personal_text ? "История тренировки • Свой текст" : "История тренировки"}
       words={training.words}
-      replayText={training.training_text}
       totalTime={Number(training.total_time || 0)}
       wpm={training.speed}
       accuracy={training.accuracy}

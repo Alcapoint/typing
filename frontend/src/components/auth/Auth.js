@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import api from "../../api";
+import { clearToken, setToken } from "../../api/baseClient";
 
 const initialForm = {
+  login: "",
   email: "",
   password: "",
+  password_confirm: "",
   username: "",
-  first_name: "",
-  last_name: "",
 };
 
 function Auth({ currentUser, onLogin, onLogout }) {
@@ -91,11 +92,11 @@ function Auth({ currentUser, onLogin, onLogout }) {
 
     api
       .signin({
-        email: form.email,
+        login: form.login,
         password: form.password,
       })
       .then((data) => {
-        localStorage.setItem("token", data.auth_token);
+        setToken(data.access_token);
         return onLogin();
       })
       .then(() => {
@@ -108,6 +109,11 @@ function Auth({ currentUser, onLogin, onLogout }) {
   };
 
   const handleRegister = () => {
+    if (form.password !== form.password_confirm) {
+      setError("Пароли должны совпадать.");
+      return;
+    }
+
     setIsSubmitting(true);
     setError("");
     setSuccess("");
@@ -115,18 +121,23 @@ function Auth({ currentUser, onLogin, onLogout }) {
     api
       .signup({
         email: form.email,
-        password: form.password,
         username: form.username,
-        first_name: form.first_name,
-        last_name: form.last_name,
+        password: form.password,
+        password_confirm: form.password_confirm,
+      })
+      .then(() => (
+        api.signin({
+          login: form.username,
+          password: form.password,
+        })
+      ))
+      .then((data) => {
+        setToken(data.access_token);
+        return onLogin();
       })
       .then(() => {
-        setSuccess("Регистрация прошла успешно. Теперь можно войти.");
-        setMode("login");
-        setForm((prev) => ({
-          ...prev,
-          password: "",
-        }));
+        setSuccess("Регистрация прошла успешно.");
+        setIsOpen(false);
       })
       .catch((err) => {
         setError(extractError(err));
@@ -150,7 +161,7 @@ function Auth({ currentUser, onLogin, onLogout }) {
       .signout()
       .catch(() => null)
       .finally(() => {
-        localStorage.removeItem("token");
+        clearToken();
         setIsOpen(false);
         onLogout();
       });
@@ -224,7 +235,7 @@ function Auth({ currentUser, onLogin, onLogout }) {
 
           <div className="auth-switcher">
             <button
-              className={!isRegister ? "active" : ""}
+              className={mode === "login" ? "active" : ""}
               type="button"
               onClick={() => setMode("login")}
             >
@@ -249,36 +260,28 @@ function Auth({ currentUser, onLogin, onLogout }) {
                 onChange={handleChange}
                 required
               />
-              <div className="auth-grid">
-                <input
-                  className="auth-input"
-                  name="first_name"
-                  placeholder="Имя"
-                  value={form.first_name}
-                  onChange={handleChange}
-                  required
-                />
-                <input
-                  className="auth-input"
-                  name="last_name"
-                  placeholder="Фамилия"
-                  value={form.last_name}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
+              <input
+                className="auth-input"
+                name="email"
+                placeholder="Email"
+                type="email"
+                value={form.email}
+                onChange={handleChange}
+                required
+              />
             </>
           )}
 
-          <input
-            className="auth-input"
-            name="email"
-            placeholder="Email"
-            type="email"
-            value={form.email}
-            onChange={handleChange}
-            required
-          />
+          {mode === "login" && (
+            <input
+              className="auth-input"
+              name="login"
+              placeholder="Username или email"
+              value={form.login}
+              onChange={handleChange}
+              required
+            />
+          )}
 
           <input
             className="auth-input"
@@ -289,6 +292,18 @@ function Auth({ currentUser, onLogin, onLogout }) {
             onChange={handleChange}
             required
           />
+
+          {isRegister && (
+            <input
+              className="auth-input"
+              name="password_confirm"
+              placeholder="Подтвердите пароль"
+              type="password"
+              value={form.password_confirm}
+              onChange={handleChange}
+              required
+            />
+          )}
 
           {error && <p className="auth-message auth-error">{error}</p>}
           {success && <p className="auth-message auth-success">{success}</p>}

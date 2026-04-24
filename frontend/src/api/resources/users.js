@@ -7,7 +7,7 @@ export function getUserData() {
   });
 }
 
-export function updateProfile({ first_name, last_name, age }) {
+export function updateProfile({ first_name, last_name, age, country }) {
   return request("/api/users/me/", {
     method: "PATCH",
     headers: getAuthHeaders(),
@@ -15,7 +15,15 @@ export function updateProfile({ first_name, last_name, age }) {
       first_name,
       last_name,
       age: age === "" ? null : Number(age),
+      country: country || null,
     }),
+  });
+}
+
+export function getCountries() {
+  return request("/api/countries/", {
+    method: "GET",
+    headers: getAuthHeaders({ optional: true }),
   });
 }
 

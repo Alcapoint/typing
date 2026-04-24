@@ -36,6 +36,7 @@ def build_leaderboard_data(user_model, limit=10):
             "username": user.username,
             "first_name": user.first_name,
             "last_name": user.last_name,
+            "avatar": user.avatar.url if user.avatar else None,
             "speed": user.best_speed,
             "accuracy": user.best_accuracy,
             "date": user.best_date,

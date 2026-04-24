@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Route, Switch, useLocation } from "react-router-dom";
 import "../App.css";
 import api from "../api";
+import { clearToken, hasToken } from "../api/baseClient";
 import AppHeader from "../components/layout/AppHeader";
 import HistoryPage from "../pages/history/HistoryPage";
 import LeaderboardPage from "../pages/leaderboard/LeaderboardPage";
@@ -23,7 +24,7 @@ function App() {
         return user;
       })
       .catch((error) => {
-        localStorage.removeItem("token");
+        clearToken();
         setCurrentUser(null);
         throw error;
       })
@@ -45,7 +46,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!localStorage.getItem("token")) {
+    if (!hasToken()) {
       return;
     }
 

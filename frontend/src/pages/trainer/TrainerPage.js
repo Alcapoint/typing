@@ -55,6 +55,7 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
   const [finished, setFinished] = useState(false);
   const [wordStats, setWordStats] = useState([]);
   const [currentWordStart, setCurrentWordStart] = useState(null);
+  const [trainingSessionToken, setTrainingSessionToken] = useState(null);
 
   const inputRef = useRef(null);
   const finishTimeout = useRef(null);
@@ -68,6 +69,8 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
   const skipAutoLoadRef = useRef(Boolean(replayTraining?.training_text));
   const lastAutoScrollTopRef = useRef(0);
   const appendInFlightRef = useRef(false);
+  const sessionStartedRef = useRef(false);
+  const sessionStartPromiseRef = useRef(null);
 
   const requestedTextSize = getRequestedTextSize(
     selectedTextType,
@@ -80,7 +83,7 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
     ? TEXT_TYPES
     : TEXT_TYPES.filter((type) => type.value !== "user");
 
-  const applyTrainingText = (content) => {
+  const applyTrainingText = (content, { sessionToken = null } = {}) => {
     const nextContent = (content || "").replace(/\s+/g, " ").trim();
 
     setText(nextContent);
@@ -94,10 +97,13 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
     setAccuracy(100);
     setWordStats([]);
     setCurrentWordStart(null);
+    setTrainingSessionToken(sessionToken);
     wordsRef.current = nextContent ? nextContent.split(" ") : [];
     completedWordDurationsRef.current = [];
     lastAutoScrollTopRef.current = 0;
     appendInFlightRef.current = false;
+    sessionStartedRef.current = false;
+    sessionStartPromiseRef.current = null;
 
     if (finishTimeout.current) {
       clearTimeout(finishTimeout.current);
@@ -123,6 +129,7 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
         requestTextType === "user"
           ? overrides.userTextId ?? selectedUserTextId
           : undefined,
+      sessionToken: overrides.sessionToken,
       size:
         overrides.size
         ?? getRequestedTextSize(
@@ -174,7 +181,9 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
         if (!data?.content) {
           throw new Error("empty-text");
         }
-        applyTrainingText(data.content);
+        applyTrainingText(data.content, {
+          sessionToken: data.session_token || null,
+        });
       })
       .catch(() => {
         if (requestId !== textRequestIdRef.current) {
@@ -201,7 +210,10 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
     const activeRequestId = textRequestIdRef.current;
 
     api
-      .getTrainingText(buildTextRequestConfig({ size: getAppendSize(selectedTextType) }))
+      .getTrainingText(buildTextRequestConfig({
+        size: getAppendSize(selectedTextType),
+        sessionToken: trainingSessionToken,
+      }))
       .then((data) => {
         if (activeRequestId !== textRequestIdRef.current || !data?.content) {
           return;
@@ -377,11 +389,29 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
         setSelectedTextType("user");
       }
 
-      applyTrainingText(
-        replayTraining.training_text
-      );
+      if (currentUser) {
+        api
+          .createReplayTrainingSession({
+            training_text: replayTraining.training_text,
+            language_code: replayTraining.language?.code,
+            user_text_id: replayTraining.user_text?.id || null,
+            is_personal_text: replayTraining.is_personal_text,
+            mode: trainingMode,
+          })
+          .then((data) => {
+            applyTrainingText(data?.content || replayTraining.training_text, {
+              sessionToken: data?.session_token || null,
+            });
+          })
+          .catch(() => {
+            applyTrainingText(replayTraining.training_text);
+          });
+        return;
+      }
+
+      applyTrainingText(replayTraining.training_text);
     }
-  }, [replayTraining]);
+  }, [currentUser, replayTraining, trainingMode]);
 
   const getCurrentWordIndex = useCallback(() => {
     if (!wordsRef.current.length) {
@@ -451,21 +481,31 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
   }, [getCurrentWordIndex, input, text]);
 
   const persistResult = useCallback((finalWords, totalTimeValue, finalSpeed, finalAccuracy) => {
-    if (!isLoggedIn) {
+    if (!isLoggedIn || !trainingSessionToken) {
       return;
     }
 
-    api.saveTrainingResult({
-      speed: finalSpeed,
-      accuracy: finalAccuracy,
-      total_time: totalTimeValue,
-      training_text: text,
-      language_code: selectedLanguage,
-      user_text_id: selectedTextType === "user" ? selectedUserTextId : null,
-      is_personal_text: selectedTextType === "user",
-      words: finalWords,
-    }).catch(() => null);
-  }, [isLoggedIn, selectedLanguage, selectedTextType, selectedUserTextId, text]);
+    const startPromise = sessionStartPromiseRef.current || Promise.resolve();
+    startPromise
+      .then(() => {
+        if (!sessionStartedRef.current) {
+          return null;
+        }
+
+        return api.saveTrainingResult({
+          speed: finalSpeed,
+          accuracy: finalAccuracy,
+          total_time: totalTimeValue,
+          training_text: text,
+          session_token: trainingSessionToken,
+          language_code: selectedLanguage,
+          user_text_id: selectedTextType === "user" ? selectedUserTextId : null,
+          is_personal_text: selectedTextType === "user",
+          words: finalWords,
+        });
+      })
+      .catch(() => null);
+  }, [isLoggedIn, selectedLanguage, selectedTextType, selectedUserTextId, text, trainingSessionToken]);
 
   const finalizeTest = useCallback((value, options = {}) => {
     if (finished) {
@@ -587,6 +627,22 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
       activeStartTime = now;
       setStartTime(now);
       setCurrentWordStart(now);
+
+      if (trainingSessionToken && !sessionStartPromiseRef.current) {
+        sessionStartPromiseRef.current = api
+          .startTrainingSession(trainingSessionToken)
+          .then(() => {
+            sessionStartedRef.current = true;
+          })
+          .catch(() => {
+            setTrainingSessionToken(null);
+          })
+          .finally(() => {
+            sessionStartPromiseRef.current = null;
+          });
+      } else if (!trainingSessionToken) {
+        sessionStartedRef.current = false;
+      }
     }
 
     if (value.length > input.length) {
@@ -758,6 +814,26 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
   const handleRestartCurrentText = () => {
     if (!text) {
       loadText();
+      return;
+    }
+
+    if (isLoggedIn) {
+      api
+        .createReplayTrainingSession({
+          training_text: text,
+          language_code: selectedLanguage,
+          user_text_id: selectedTextType === "user" ? selectedUserTextId : null,
+          is_personal_text: selectedTextType === "user",
+          mode: trainingMode,
+        })
+        .then((data) => {
+          applyTrainingText(data?.content || text, {
+            sessionToken: data?.session_token || null,
+          });
+        })
+        .catch(() => {
+          applyTrainingText(text);
+        });
       return;
     }
 

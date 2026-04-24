@@ -51,7 +51,6 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
 
     'rest_framework',
-    'rest_framework.authtoken',
     'django_filters',
     'djoser',
 ]
@@ -91,7 +90,7 @@ WSGI_APPLICATION = 'typing_trainer.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('POSTGRES_DB', 'typing_trainer'),
+        'NAME': os.getenv('POSTGRES_DB', 'type'),
         'USER': os.getenv('POSTGRES_USER', 'postgres'),
         'PASSWORD': os.getenv('POSTGRES_PASSWORD', 'postgres'),
         'HOST': os.getenv('DB_HOST', 'localhost'),
@@ -145,6 +144,16 @@ SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 USE_X_FORWARDED_HOST = True
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
+AUTH_ACCESS_TOKEN_LIFETIME_SECONDS = int(
+    os.getenv('AUTH_ACCESS_TOKEN_LIFETIME_SECONDS', '600')
+)
+AUTH_REFRESH_TOKEN_LIFETIME_SECONDS = int(
+    os.getenv('AUTH_REFRESH_TOKEN_LIFETIME_SECONDS', '86400')
+)
+AUTH_REFRESH_COOKIE_NAME = os.getenv('AUTH_REFRESH_COOKIE_NAME', 'refresh_token')
+AUTH_REFRESH_COOKIE_PATH = os.getenv('AUTH_REFRESH_COOKIE_PATH', '/api/auth/token/')
+AUTH_REFRESH_COOKIE_SAMESITE = os.getenv('AUTH_REFRESH_COOKIE_SAMESITE', 'Lax')
+AUTH_REFRESH_COOKIE_SECURE = _env_bool('AUTH_REFRESH_COOKIE_SECURE', not DEBUG)
 
 
 AUTH_USER_MODEL = 'users.User'
@@ -155,7 +164,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework.authentication.TokenAuthentication',
+        'api.authentication.AccessTokenAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': [
     ],

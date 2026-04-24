@@ -1,7 +1,15 @@
 import re
+import uuid
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.contrib.auth import get_user_model
+from django.utils import timezone
+
+from .constants import (
+    DEFAULT_TEXT_TYPE,
+    MODE_STANDARD,
+    TRAINING_SESSION_TTL_SECONDS,
+)
 
 User = get_user_model()
 WORD_PATTERN = re.compile(r'\b\w+\b', re.UNICODE)
@@ -42,6 +50,58 @@ class Result(models.Model):
 
     def __str__(self):
         return f'{self.user or "guest"} - {self.speed} WPM'
+
+
+def get_training_session_expiry():
+    return timezone.now() + timezone.timedelta(
+        seconds=TRAINING_SESSION_TTL_SECONDS
+    )
+
+
+class TrainingSession(models.Model):
+    token = models.UUIDField(
+        default=uuid.uuid4,
+        unique=True,
+        editable=False,
+        db_index=True,
+    )
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='training_sessions',
+    )
+    language = models.ForeignKey(
+        'Language',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='training_sessions',
+    )
+    user_text = models.ForeignKey(
+        'UserText',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='training_sessions',
+    )
+    training_text = models.TextField(blank=True, default='')
+    text_type = models.CharField(max_length=16, default=DEFAULT_TEXT_TYPE)
+    mode = models.CharField(max_length=16, default=MODE_STANDARD)
+    requested_size = models.PositiveIntegerField(default=0)
+    is_personal_text = models.BooleanField(default=False)
+    client_fingerprint = models.CharField(max_length=64, db_index=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField(default=get_training_session_expiry, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.token} ({self.user or "guest"})'
 
 
 class Language(models.Model):

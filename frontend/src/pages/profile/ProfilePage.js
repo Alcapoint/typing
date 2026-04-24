@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import api from "../../api";
 import LoadingHint from "../../components/feedback/LoadingHint";
 
@@ -16,7 +16,10 @@ function ProfilePage({ currentUser, onProfileUpdate }) {
     first_name: "",
     last_name: "",
     age: "",
+    country: "",
   });
+  const [countries, setCountries] = useState([]);
+  const [isCountrySuggestionsOpen, setIsCountrySuggestionsOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -30,6 +33,7 @@ function ProfilePage({ currentUser, onProfileUpdate }) {
   const [textMessage, setTextMessage] = useState("");
   const [textError, setTextError] = useState("");
   const [isSavingText, setIsSavingText] = useState(false);
+  const countryFieldRef = useRef(null);
 
   useEffect(() => {
     if (!currentUser) {
@@ -40,8 +44,35 @@ function ProfilePage({ currentUser, onProfileUpdate }) {
       first_name: currentUser.first_name || "",
       last_name: currentUser.last_name || "",
       age: currentUser.age ?? "",
+      country: currentUser.country || "",
     });
   }, [currentUser]);
+
+  useEffect(() => {
+    api
+      .getCountries()
+      .then((data) => {
+        setCountries(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {
+        setCountries([]);
+      });
+  }, []);
+
+  useEffect(() => {
+    if (!isCountrySuggestionsOpen) {
+      return undefined;
+    }
+
+    const handleOutsideClick = (event) => {
+      if (!countryFieldRef.current?.contains(event.target)) {
+        setIsCountrySuggestionsOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, [isCountrySuggestionsOpen]);
 
   useEffect(() => {
     if (!currentUser) {
@@ -63,6 +94,17 @@ function ProfilePage({ currentUser, onProfileUpdate }) {
     return source.slice(0, 1).toUpperCase();
   }, [currentUser]);
 
+  const filteredCountries = useMemo(() => {
+    const query = form.country.trim().toLowerCase();
+    if (!query) {
+      return [];
+    }
+
+    return countries
+      .filter((country) => country.toLowerCase().startsWith(query))
+      .slice(0, 8);
+  }, [countries, form.country]);
+
   if (!currentUser) {
     return (
       <div className="page-card">
@@ -78,10 +120,29 @@ function ProfilePage({ currentUser, onProfileUpdate }) {
       ...prev,
       [name]: value,
     }));
+
+    if (name === "country") {
+      setError("");
+      setIsCountrySuggestionsOpen(Boolean(value.trim()));
+    }
+  };
+
+  const handleCountrySelect = (country) => {
+    setForm((prev) => ({
+      ...prev,
+      country,
+    }));
+    setError("");
+    setIsCountrySuggestionsOpen(false);
   };
 
   const handleSubmit = (event) => {
     event.preventDefault();
+    if (form.country && !countries.includes(form.country)) {
+      setError("Выберите страну из списка.");
+      return;
+    }
+
     setIsSaving(true);
     setMessage("");
     setError("");
@@ -201,14 +262,14 @@ function ProfilePage({ currentUser, onProfileUpdate }) {
         <div className="profile-hero-copy">
           <p className="page-muted">Профиль пользователя</p>
           <h2>{currentUser.username}</h2>
-          <span className="profile-email">{currentUser.email}</span>
+          <span className="profile-email">{currentUser.country || "Страна не указана"}</span>
         </div>
       </div>
 
       <form className="page-card profile-form" onSubmit={handleSubmit}>
         <div className="panel-heading">
           <h3>Личные данные</h3>
-          <p>Обновите имя, фамилию, возраст и аватар.</p>
+          <p>Обновите имя, фамилию, возраст, страну и аватар.</p>
         </div>
 
         <div className="profile-grid">
@@ -218,7 +279,6 @@ function ProfilePage({ currentUser, onProfileUpdate }) {
             placeholder="Имя"
             value={form.first_name}
             onChange={handleChange}
-            required
           />
           <input
             className="auth-input"
@@ -226,7 +286,6 @@ function ProfilePage({ currentUser, onProfileUpdate }) {
             placeholder="Фамилия"
             value={form.last_name}
             onChange={handleChange}
-            required
           />
           <input
             className="auth-input"
@@ -238,6 +297,32 @@ function ProfilePage({ currentUser, onProfileUpdate }) {
             value={form.age}
             onChange={handleChange}
           />
+          <div className="profile-country-field" ref={countryFieldRef}>
+            <input
+              className="auth-input"
+              name="country"
+              placeholder="Страна проживания"
+              autoComplete="off"
+              value={form.country}
+              onChange={handleChange}
+              onFocus={() => setIsCountrySuggestionsOpen(Boolean(form.country.trim()))}
+            />
+
+            {isCountrySuggestionsOpen && filteredCountries.length ? (
+              <div className="profile-country-suggestions" role="listbox">
+                {filteredCountries.map((country) => (
+                  <button
+                    key={country}
+                    className="profile-country-option"
+                    type="button"
+                    onClick={() => handleCountrySelect(country)}
+                  >
+                    {country}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
         </div>
 
         <div className="profile-avatar-actions">

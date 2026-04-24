@@ -1,6 +1,13 @@
 from rest_framework import serializers
 
 from .models import HelpItem, HelpSection, Language, Result, UserText
+from .services.text_generation import normalize_spaces
+from .services.training_security import (
+    build_verified_result_payload,
+    complete_training_session,
+    get_active_training_session,
+    validate_session_result_timing,
+)
 
 
 class LanguageSerializer(serializers.ModelSerializer):
@@ -38,6 +45,7 @@ class ResultSerializer(serializers.ModelSerializer):
 
 
 class ResultCreateSerializer(serializers.ModelSerializer):
+    session_token = serializers.UUIDField(write_only=True)
     language_code = serializers.SlugRelatedField(
         slug_field='code',
         source='language',
@@ -61,6 +69,7 @@ class ResultCreateSerializer(serializers.ModelSerializer):
             'accuracy',
             'total_time',
             'training_text',
+            'session_token',
             'language_code',
             'user_text_id',
             'is_personal_text',
@@ -69,20 +78,60 @@ class ResultCreateSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         request = self.context.get('request')
-        user_text = attrs.get('user_text')
+        session = get_active_training_session(request, attrs.pop('session_token', None))
 
-        if user_text:
+        submitted_text = normalize_spaces(attrs.get('training_text', ''))
+        if submitted_text and submitted_text != session.training_text:
+            raise serializers.ValidationError(
+                'Результат не соответствует тексту выданной тренировки.'
+            )
+
+        submitted_language = attrs.get('language')
+        if submitted_language and submitted_language != session.language:
+            raise serializers.ValidationError(
+                'Результат не соответствует языку выданной тренировки.'
+            )
+
+        submitted_user_text = attrs.get('user_text')
+        if submitted_user_text and submitted_user_text != session.user_text:
+            raise serializers.ValidationError(
+                'Результат не соответствует исходному пользовательскому тексту.'
+            )
+
+        if session.user_text:
             if not request or not request.user.is_authenticated:
                 raise serializers.ValidationError(
                     'Свой текст доступен только авторизованному пользователю.'
                 )
-            if user_text.user != request.user:
+            if session.user_text.user != request.user:
                 raise serializers.ValidationError(
                     'Нельзя сохранить результат для чужого текста.'
                 )
-            attrs['is_personal_text'] = True
+
+        verified_result = build_verified_result_payload(
+            session.training_text,
+            attrs.get('words'),
+            attrs.get('total_time'),
+        )
+        validate_session_result_timing(session, verified_result['total_time'])
+
+        attrs['training_text'] = session.training_text
+        attrs['language'] = session.language
+        attrs['user_text'] = session.user_text
+        attrs['is_personal_text'] = session.is_personal_text
+        attrs['speed'] = verified_result['speed']
+        attrs['accuracy'] = verified_result['accuracy']
+        attrs['total_time'] = verified_result['total_time']
+        attrs['words'] = verified_result['words']
+        attrs['training_session'] = session
 
         return attrs
+
+    def create(self, validated_data):
+        session = validated_data.pop('training_session')
+        result = super().create(validated_data)
+        complete_training_session(session)
+        return result
 
 
 class HelpItemSerializer(serializers.ModelSerializer):
