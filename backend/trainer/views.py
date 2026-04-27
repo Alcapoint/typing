@@ -28,6 +28,10 @@ from .services.text_generation import (
     normalize_spaces,
     parse_bool,
 )
+from .services.training_analysis import (
+    ensure_result_analysis,
+    ensure_result_analyses,
+)
 from .services.training_security import (
     append_training_session_text,
     create_training_session,
@@ -172,6 +176,7 @@ def save_result(request):
     )
     serializer.is_valid(raise_exception=True)
     result = serializer.save(user=request.user)
+    ensure_result_analysis(result)
     return Response(ResultSerializer(result).data, status=201)
 
 
@@ -247,7 +252,12 @@ def leaderboard_user_detail(request, user_id):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def history(request):
-    results = Result.objects.filter(user=request.user)
+    results = list(
+        Result.objects.select_related('language', 'user_text', 'analysis').filter(
+            user=request.user
+        )
+    )
+    ensure_result_analyses(results)
     serializer = ResultSerializer(results, many=True)
     return Response(serializer.data)
 
@@ -255,10 +265,15 @@ def history(request):
 @api_view(['GET', 'DELETE'])
 @permission_classes([IsAuthenticated])
 def history_detail(request, result_id):
-    result = get_object_or_404(Result, id=result_id, user=request.user)
+    result = get_object_or_404(
+        Result.objects.select_related('language', 'user_text', 'analysis'),
+        id=result_id,
+        user=request.user,
+    )
     if request.method == 'DELETE':
         result.delete()
         return Response(status=204)
+    ensure_result_analysis(result)
     serializer = ResultSerializer(result)
     return Response(serializer.data)
 

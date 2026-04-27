@@ -64,6 +64,8 @@ function TrainingDetailPage({ currentUser }) {
       totalTime={Number(training.total_time || 0)}
       wpm={training.speed}
       accuracy={training.accuracy}
+      analysis={training.analysis}
+      fixedScreen
       replayMaxLines={5}
       replayClassName="history-detail-replay"
       primaryActionLabel="Повторить тренировку"

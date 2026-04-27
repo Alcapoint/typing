@@ -54,6 +54,8 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
   const [accuracy, setAccuracy] = useState(100);
   const [finished, setFinished] = useState(false);
   const [wordStats, setWordStats] = useState([]);
+  const [resultAnalysis, setResultAnalysis] = useState(null);
+  const [isAnalysisLoading, setIsAnalysisLoading] = useState(false);
   const [currentWordStart, setCurrentWordStart] = useState(null);
   const [trainingSessionToken, setTrainingSessionToken] = useState(null);
 
@@ -65,6 +67,7 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
   const trainerTextRef = useRef(null);
   const trainerWordRefs = useRef([]);
   const textRequestIdRef = useRef(0);
+  const trainingRunIdRef = useRef(0);
   const completedWordDurationsRef = useRef([]);
   const skipAutoLoadRef = useRef(Boolean(replayTraining?.training_text));
   const lastAutoScrollTopRef = useRef(0);
@@ -85,6 +88,7 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
 
   const applyTrainingText = (content, { sessionToken = null } = {}) => {
     const nextContent = (content || "").replace(/\s+/g, " ").trim();
+    trainingRunIdRef.current += 1;
 
     setText(nextContent);
     setTextError("");
@@ -96,6 +100,8 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
     setWpm(0);
     setAccuracy(100);
     setWordStats([]);
+    setResultAnalysis(null);
+    setIsAnalysisLoading(false);
     setCurrentWordStart(null);
     setTrainingSessionToken(sessionToken);
     wordsRef.current = nextContent ? nextContent.split(" ") : [];
@@ -349,9 +355,9 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
       }
     };
 
-    document.addEventListener("mousedown", handleOutsideClick);
+    document.addEventListener("pointerdown", handleOutsideClick);
     return () => {
-      document.removeEventListener("mousedown", handleOutsideClick);
+      document.removeEventListener("pointerdown", handleOutsideClick);
     };
   }, []);
 
@@ -482,13 +488,22 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
 
   const persistResult = useCallback((finalWords, totalTimeValue, finalSpeed, finalAccuracy) => {
     if (!isLoggedIn || !trainingSessionToken) {
+      setResultAnalysis(null);
+      setIsAnalysisLoading(false);
       return;
     }
+
+    const activeRequestId = trainingRunIdRef.current;
+    setResultAnalysis(null);
+    setIsAnalysisLoading(true);
 
     const startPromise = sessionStartPromiseRef.current || Promise.resolve();
     startPromise
       .then(() => {
         if (!sessionStartedRef.current) {
+          if (activeRequestId === trainingRunIdRef.current) {
+            setIsAnalysisLoading(false);
+          }
           return null;
         }
 
@@ -504,7 +519,18 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
           words: finalWords,
         });
       })
-      .catch(() => null);
+      .then((savedResult) => {
+        if (activeRequestId !== trainingRunIdRef.current || !savedResult) {
+          return;
+        }
+        setResultAnalysis(savedResult.analysis || null);
+      })
+      .catch(() => null)
+      .finally(() => {
+        if (activeRequestId === trainingRunIdRef.current) {
+          setIsAnalysisLoading(false);
+        }
+      });
   }, [isLoggedIn, selectedLanguage, selectedTextType, selectedUserTextId, text, trainingSessionToken]);
 
   const finalizeTest = useCallback((value, options = {}) => {
@@ -862,6 +888,8 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
         totalTime={totalTime}
         wpm={wpm}
         accuracy={accuracy}
+        analysis={resultAnalysis}
+        analysisLoading={isAnalysisLoading}
         replayMaxLines={6}
         primaryActionLabel="Вернуться"
         onPrimaryAction={handleRestartCurrentText}

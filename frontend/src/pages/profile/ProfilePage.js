@@ -33,7 +33,17 @@ function ProfilePage({ currentUser, onProfileUpdate }) {
   const [textMessage, setTextMessage] = useState("");
   const [textError, setTextError] = useState("");
   const [isSavingText, setIsSavingText] = useState(false);
+  const [isAvatarHintVisible, setIsAvatarHintVisible] = useState(false);
   const countryFieldRef = useRef(null);
+  const avatarInputRef = useRef(null);
+  const avatarHintTimerRef = useRef(null);
+
+  const getAvatarHintStorageKey = (user) => {
+    if (!user) {
+      return "profile-avatar-hint-dismissed";
+    }
+    return `profile-avatar-hint-dismissed:${user.id || user.username || "user"}`;
+  };
 
   useEffect(() => {
     if (!currentUser) {
@@ -70,8 +80,8 @@ function ProfilePage({ currentUser, onProfileUpdate }) {
       }
     };
 
-    document.addEventListener("mousedown", handleOutsideClick);
-    return () => document.removeEventListener("mousedown", handleOutsideClick);
+    document.addEventListener("pointerdown", handleOutsideClick);
+    return () => document.removeEventListener("pointerdown", handleOutsideClick);
   }, [isCountrySuggestionsOpen]);
 
   useEffect(() => {
@@ -88,6 +98,27 @@ function ProfilePage({ currentUser, onProfileUpdate }) {
         setTextError("Не удалось загрузить ваши тексты.");
       });
   }, [currentUser]);
+
+  useEffect(() => {
+    if (!currentUser || currentUser.avatar) {
+      setIsAvatarHintVisible(false);
+      return;
+    }
+
+    if (typeof window === "undefined") {
+      setIsAvatarHintVisible(true);
+      return;
+    }
+
+    const isDismissed = window.localStorage.getItem(getAvatarHintStorageKey(currentUser)) === "1";
+    setIsAvatarHintVisible(!isDismissed);
+  }, [currentUser]);
+
+  useEffect(() => () => {
+    if (avatarHintTimerRef.current) {
+      window.clearTimeout(avatarHintTimerRef.current);
+    }
+  }, []);
 
   const avatarFallback = useMemo(() => {
     const source = currentUser?.first_name || currentUser?.username || "?";
@@ -201,6 +232,49 @@ function ProfilePage({ currentUser, onProfileUpdate }) {
       .finally(() => setIsUploadingAvatar(false));
   };
 
+  const openAvatarPicker = () => {
+    if (isUploadingAvatar) {
+      return;
+    }
+    avatarInputRef.current?.click();
+  };
+
+  const dismissAvatarHint = () => {
+    if (!currentUser) {
+      return;
+    }
+
+    if (avatarHintTimerRef.current) {
+      window.clearTimeout(avatarHintTimerRef.current);
+      avatarHintTimerRef.current = null;
+    }
+
+    setIsAvatarHintVisible(false);
+
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(getAvatarHintStorageKey(currentUser), "1");
+    }
+  };
+
+  const startAvatarHintTimer = () => {
+    if (!isAvatarHintVisible || avatarHintTimerRef.current) {
+      return;
+    }
+
+    avatarHintTimerRef.current = window.setTimeout(() => {
+      dismissAvatarHint();
+    }, 4000);
+  };
+
+  const stopAvatarHintTimer = () => {
+    if (!avatarHintTimerRef.current) {
+      return;
+    }
+
+    window.clearTimeout(avatarHintTimerRef.current);
+    avatarHintTimerRef.current = null;
+  };
+
   const resetTextForm = () => {
     setTextForm({ title: "", content: "" });
     setEditingTextId(null);
@@ -251,12 +325,111 @@ function ProfilePage({ currentUser, onProfileUpdate }) {
   return (
     <div className="profile-page">
       <div className="page-card profile-hero">
-        <div className="profile-avatar-large">
-          {currentUser.avatar ? (
-            <img src={currentUser.avatar} alt={currentUser.username} />
-          ) : (
-            <span>{avatarFallback}</span>
-          )}
+        <div className="profile-avatar-shell">
+          <div className="profile-avatar-large">
+            {currentUser.avatar ? (
+              <img src={currentUser.avatar} alt={currentUser.username} />
+            ) : (
+              <span>{avatarFallback}</span>
+            )}
+
+            <div className="profile-avatar-overlay">
+              {currentUser.avatar ? (
+                <div className="profile-avatar-overlay-actions">
+                  <button
+                    className="profile-avatar-action"
+                    type="button"
+                    onClick={handleAvatarDelete}
+                    disabled={isUploadingAvatar}
+                    aria-label="Удалить аватар"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path
+                        d="M9 3h6m-9 4h12m-9 0v11m6-11v11M8 7l.6 11.2a1 1 0 0 0 1 .8h4.8a1 1 0 0 0 1-.8L16 7"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.7"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </button>
+                  <button
+                    className="profile-avatar-action"
+                    type="button"
+                    onClick={openAvatarPicker}
+                    disabled={isUploadingAvatar}
+                    aria-label="Обновить аватар"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path
+                        d="M12 16V7m0 0-3 3m3-3 3 3M5 16.5v1a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5v-1"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.7"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </button>
+                </div>
+              ) : (
+                <button
+                  className="profile-avatar-action profile-avatar-action-primary"
+                  type="button"
+                  onClick={openAvatarPicker}
+                  disabled={isUploadingAvatar}
+                  aria-label="Загрузить аватар"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                      d="M12 16V7m0 0-3 3m3-3 3 3M5 16.5v1a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5v-1"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.7"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </button>
+              )}
+            </div>
+
+            {isUploadingAvatar ? (
+              <div className="profile-avatar-loading">
+                <LoadingHint variant="button" />
+              </div>
+            ) : null}
+          </div>
+
+          {isAvatarHintVisible ? (
+            <div
+              className={`profile-avatar-hint ${currentUser.avatar ? "hidden" : ""}`}
+              onPointerEnter={startAvatarHintTimer}
+              onPointerLeave={stopAvatarHintTimer}
+              onFocus={startAvatarHintTimer}
+              onBlur={stopAvatarHintTimer}
+            >
+              <button
+                className="profile-avatar-hint-trigger"
+                type="button"
+                aria-label="Как добавить аватар"
+              >
+                ?
+              </button>
+              <div className="profile-avatar-hint-tooltip">
+                Добавьте аватар через наведение на иконку профиля и нажатие на значок загрузки.
+              </div>
+            </div>
+          ) : null}
+
+          <input
+            ref={avatarInputRef}
+            className="profile-avatar-input"
+            type="file"
+            accept="image/*"
+            onChange={handleAvatarUpload}
+          />
         </div>
 
         <div className="profile-hero-copy">
@@ -323,24 +496,6 @@ function ProfilePage({ currentUser, onProfileUpdate }) {
               </div>
             ) : null}
           </div>
-        </div>
-
-        <div className="profile-avatar-actions">
-          <label className="result-btn result-btn-secondary profile-upload-btn">
-            <input type="file" accept="image/*" onChange={handleAvatarUpload} />
-            {isUploadingAvatar ? <LoadingHint variant="button" /> : "Загрузить аватар"}
-          </label>
-
-          {currentUser.avatar ? (
-            <button
-              className="result-btn result-btn-secondary"
-              type="button"
-              onClick={handleAvatarDelete}
-              disabled={isUploadingAvatar}
-            >
-              Удалить аватар
-            </button>
-          ) : null}
         </div>
 
         {error ? <p className="auth-message auth-error">{error}</p> : null}

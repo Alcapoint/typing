@@ -42,6 +42,9 @@ class Result(models.Model):
         related_name='results'
     )
     is_personal_text = models.BooleanField(default=False)
+    text_type = models.CharField(max_length=16, default=DEFAULT_TEXT_TYPE)
+    mode = models.CharField(max_length=16, default=MODE_STANDARD)
+    requested_size = models.PositiveIntegerField(default=0)
     words = models.JSONField(default=list, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -50,6 +53,31 @@ class Result(models.Model):
 
     def __str__(self):
         return f'{self.user or "guest"} - {self.speed} WPM'
+
+
+class TrainingAnalysis(models.Model):
+    result = models.OneToOneField(
+        Result,
+        on_delete=models.CASCADE,
+        related_name='analysis',
+    )
+    analysis_version = models.CharField(max_length=16, default='v1')
+    headline = models.CharField(max_length=160, blank=True, default='')
+    focus_area = models.CharField(max_length=64, blank=True, default='')
+    overall_score = models.PositiveSmallIntegerField(default=0)
+    speed_score = models.PositiveSmallIntegerField(default=0)
+    accuracy_score = models.PositiveSmallIntegerField(default=0)
+    stability_score = models.PositiveSmallIntegerField(default=0)
+    completion_score = models.PositiveSmallIntegerField(default=0)
+    metrics = models.JSONField(default=dict, blank=True)
+    strengths = models.JSONField(default=list, blank=True)
+    pain_points = models.JSONField(default=list, blank=True)
+    recommendations = models.JSONField(default=list, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'Analysis for result #{self.result_id}'
 
 
 def get_training_session_expiry():

@@ -19,6 +19,7 @@ function Auth({ currentUser, onLogin, onLogout }) {
   const [success, setSuccess] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const authPanelRef = useRef(null);
   const userMenuRef = useRef(null);
 
   const isRegister = mode === "register";
@@ -46,9 +47,24 @@ function Auth({ currentUser, onLogin, onLogout }) {
       }
     };
 
-    document.addEventListener("mousedown", handleOutsideClick);
-    return () => document.removeEventListener("mousedown", handleOutsideClick);
+    document.addEventListener("pointerdown", handleOutsideClick);
+    return () => document.removeEventListener("pointerdown", handleOutsideClick);
   }, [isUserMenuOpen]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return undefined;
+    }
+
+    const handleOutsideClick = (event) => {
+      if (!authPanelRef.current?.contains(event.target)) {
+        closePanel();
+      }
+    };
+
+    document.addEventListener("pointerdown", handleOutsideClick);
+    return () => document.removeEventListener("pointerdown", handleOutsideClick);
+  }, [isOpen]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -216,7 +232,7 @@ function Auth({ currentUser, onLogin, onLogout }) {
       </div>
 
       {isOpen && (
-        <form className="auth-popover" onSubmit={handleSubmit}>
+        <form ref={authPanelRef} className="auth-popover" onSubmit={handleSubmit}>
           <div className="auth-popover-header">
             <div>
               <p className="auth-kicker">TYPE</p>

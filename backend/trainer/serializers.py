@@ -1,6 +1,13 @@
 from rest_framework import serializers
 
-from .models import HelpItem, HelpSection, Language, Result, UserText
+from .models import (
+    HelpItem,
+    HelpSection,
+    Language,
+    Result,
+    TrainingAnalysis,
+    UserText,
+)
 from .services.text_generation import normalize_spaces
 from .services.training_security import (
     build_verified_result_payload,
@@ -26,6 +33,7 @@ class ResultSerializer(serializers.ModelSerializer):
     username = serializers.CharField(source='user.username', read_only=True)
     language = LanguageSerializer(read_only=True)
     user_text_title = serializers.CharField(source='user_text.title', read_only=True)
+    analysis = serializers.SerializerMethodField()
 
     class Meta:
         model = Result
@@ -39,9 +47,20 @@ class ResultSerializer(serializers.ModelSerializer):
             'language',
             'is_personal_text',
             'user_text_title',
+            'text_type',
+            'mode',
+            'requested_size',
             'words',
+            'analysis',
             'created_at',
         )
+
+    def get_analysis(self, obj):
+        try:
+            analysis = obj.analysis
+        except TrainingAnalysis.DoesNotExist:
+            return None
+        return TrainingAnalysisSerializer(analysis).data
 
 
 class ResultCreateSerializer(serializers.ModelSerializer):
@@ -119,6 +138,9 @@ class ResultCreateSerializer(serializers.ModelSerializer):
         attrs['language'] = session.language
         attrs['user_text'] = session.user_text
         attrs['is_personal_text'] = session.is_personal_text
+        attrs['text_type'] = session.text_type
+        attrs['mode'] = session.mode
+        attrs['requested_size'] = session.requested_size
         attrs['speed'] = verified_result['speed']
         attrs['accuracy'] = verified_result['accuracy']
         attrs['total_time'] = verified_result['total_time']
@@ -161,4 +183,23 @@ class UserTextSerializer(serializers.ModelSerializer):
             'content',
             'created_at',
             'updated_at',
+        )
+
+
+class TrainingAnalysisSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TrainingAnalysis
+        fields = (
+            'analysis_version',
+            'headline',
+            'focus_area',
+            'overall_score',
+            'speed_score',
+            'accuracy_score',
+            'stability_score',
+            'completion_score',
+            'metrics',
+            'strengths',
+            'pain_points',
+            'recommendations',
         )

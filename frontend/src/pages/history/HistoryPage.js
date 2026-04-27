@@ -114,6 +114,15 @@ function HistoryPage({ currentUser }) {
             </div>
 
             <div className="history-stats">
+              {item.analysis ? (
+                <div className="stat-badge stat-badge-accent">
+                  <span className="stat-badge-label">Score</span>
+                  <div className="stat-badge-value-row">
+                    <strong className="stat-badge-value">{item.analysis.overall_score}</strong>
+                    <span className="stat-badge-suffix">/100</span>
+                  </div>
+                </div>
+              ) : null}
               <div className="stat-badge stat-badge-accent">
                 <span className="stat-badge-label">Speed</span>
                 <div className="stat-badge-value-row">
@@ -136,7 +145,6 @@ function HistoryPage({ currentUser }) {
                 </div>
               </div>
             </div>
-
             <div className="history-chart">
               <TrainingMiniChart words={item.words} compact />
             </div>
@@ -151,8 +159,6 @@ function HistoryPage({ currentUser }) {
               <h3>Удалить тренировку?</h3>
               <p>Запись из истории будет удалена без возможности восстановления.</p>
             </div>
-
-            <p className="confirm-preview">{pendingDeleteItem.training_text}</p>
 
             <div className="result-actions confirm-actions">
               <button
