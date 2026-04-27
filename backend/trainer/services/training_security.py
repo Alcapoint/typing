@@ -96,10 +96,13 @@ def validate_and_normalize_words(training_text, words):
         if duration < 0:
             raise serializers.ValidationError('Длительность слова не может быть отрицательной.')
 
+        had_mistake = bool(item.get('had_mistake', False))
+
         normalized_words.append({
             'correct': correct,
             'typed': typed,
             'duration': duration,
+            'had_mistake': had_mistake,
         })
 
     typed_input = rebuild_typed_input(normalized_words)

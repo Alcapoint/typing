@@ -26,6 +26,18 @@ import {
   getWordSpeedMetrics,
 } from "./trainerHelpers";
 
+const isTextEntryElement = (element) => {
+  if (!(element instanceof HTMLElement)) {
+    return false;
+  }
+
+  return Boolean(
+    element.closest(
+      'input, textarea, select, [contenteditable="true"], [contenteditable="plaintext-only"]'
+    )
+  );
+};
+
 function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replayTraining }) {
   const [selectedTextType, setSelectedTextType] = useState("quote");
   const [userTexts, setUserTexts] = useState([]);
@@ -74,6 +86,7 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
   const appendInFlightRef = useRef(false);
   const sessionStartedRef = useRef(false);
   const sessionStartPromiseRef = useRef(null);
+  const mistakeWordIndexesRef = useRef(new Set());
 
   const requestedTextSize = getRequestedTextSize(
     selectedTextType,
@@ -110,6 +123,7 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
     appendInFlightRef.current = false;
     sessionStartedRef.current = false;
     sessionStartPromiseRef.current = null;
+    mistakeWordIndexesRef.current = new Set();
 
     if (finishTimeout.current) {
       clearTimeout(finishTimeout.current);
@@ -207,7 +221,7 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
       });
   }, [buildTextRequestConfig, selectedTextType, selectedUserTextId]);
 
-  const appendTextChunk = () => {
+  const appendTextChunk = useCallback(() => {
     if (appendInFlightRef.current || trainingMode !== "time") {
       return;
     }
@@ -237,7 +251,7 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
           appendInFlightRef.current = false;
         }
       });
-  };
+  }, [buildTextRequestConfig, selectedTextType, trainingMode, trainingSessionToken]);
 
   useEffect(() => {
     if (!isLoggedIn) {
@@ -430,6 +444,27 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
     );
   }, [input]);
 
+  const getWordIndexByCharPosition = useCallback((charIndex) => {
+    if (charIndex < 0 || !wordsRef.current.length) {
+      return 0;
+    }
+
+    let cursor = 0;
+
+    for (let wordIndex = 0; wordIndex < wordsRef.current.length; wordIndex += 1) {
+      const word = wordsRef.current[wordIndex];
+      const wordEnd = cursor + word.length;
+
+      if (charIndex <= wordEnd) {
+        return wordIndex;
+      }
+
+      cursor = wordEnd + 1;
+    }
+
+    return wordsRef.current.length - 1;
+  }, []);
+
   useLayoutEffect(() => {
     const scrollContainer = trainerTextRef.current;
 
@@ -565,6 +600,7 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
         wpm: wordWpm,
         cpm: wordCpm,
         errors: getWordErrorCount(correct, typedWord),
+        had_mistake: mistakeWordIndexesRef.current.has(index),
       };
     });
 
@@ -615,7 +651,7 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
     finalizeTest(input);
   }, [elapsedSeconds, finalizeTest, finished, input, startTime, timeLimitSeconds, trainingMode]);
 
-  const updateLiveMetrics = (value, currentStartTime) => {
+  const updateLiveMetrics = useCallback((value, currentStartTime) => {
     const typedErrors = getTypedErrorCount(value, text);
     const nextAccuracy = value.length
       ? Number((((value.length - typedErrors) / value.length) * 100).toFixed(1))
@@ -631,14 +667,13 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
     } else {
       setWpm(0);
     }
-  };
+  }, [text]);
 
-  const handleChange = (event) => {
+  const applyInputValue = useCallback((value) => {
     if (finished || isTrainerLocked) {
       return;
     }
 
-    const value = event.target.value;
     const previousCompletedWordCount = getCompletedWordCount(input);
     const nextCompletedWordCount = getCompletedWordCount(value);
 
@@ -672,8 +707,17 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
     }
 
     if (value.length > input.length) {
+      const appendedSlice = value.slice(input.length);
+      const firstAppendedIndex = input.length;
       const lastChar = value[value.length - 1];
       const expectedChar = text[value.length - 1];
+
+      for (let offset = 0; offset < appendedSlice.length; offset += 1) {
+        const charIndex = firstAppendedIndex + offset;
+        if (value[charIndex] !== text[charIndex]) {
+          mistakeWordIndexesRef.current.add(getWordIndexByCharPosition(charIndex));
+        }
+      }
 
       if (lastChar === " ") {
         const now = Date.now();
@@ -724,6 +768,23 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
       clearTimeout(finishTimeout.current);
       finishTimeout.current = null;
     }
+  }, [
+    currentWordStart,
+    finalizeTest,
+    finished,
+    getWordIndexByCharPosition,
+    input,
+    isTrainerLocked,
+    appendTextChunk,
+    startTime,
+    text,
+    trainingMode,
+    trainingSessionToken,
+    updateLiveMetrics,
+  ]);
+
+  const handleChange = (event) => {
+    applyInputValue(event.target.value);
   };
 
   const handleKeyDown = (event) => {
@@ -773,6 +834,50 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
 
     inputRef.current?.focus();
   };
+
+  useEffect(() => {
+    const handleGlobalTyping = (event) => {
+      if (
+        finished
+        || isTrainerLocked
+        || !text
+        || event.defaultPrevented
+        || event.ctrlKey
+        || event.metaKey
+        || event.altKey
+      ) {
+        return;
+      }
+
+      if (document.querySelector(".auth-popover")) {
+        return;
+      }
+
+      if (isTextEntryElement(event.target)) {
+        return;
+      }
+
+      if (event.key === "Backspace") {
+        event.preventDefault();
+        inputRef.current?.focus();
+        applyInputValue(input.slice(0, -1));
+        return;
+      }
+
+      if (event.key.length !== 1) {
+        return;
+      }
+
+      event.preventDefault();
+      inputRef.current?.focus();
+      applyInputValue(`${input}${event.key}`);
+    };
+
+    document.addEventListener("keydown", handleGlobalTyping, true);
+    return () => {
+      document.removeEventListener("keydown", handleGlobalTyping, true);
+    };
+  }, [applyInputValue, finished, input, isTrainerLocked, text]);
 
   const renderText = () => {
     let globalIndex = 0;

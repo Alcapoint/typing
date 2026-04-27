@@ -21,6 +21,7 @@ function Auth({ currentUser, onLogin, onLogout }) {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const authPanelRef = useRef(null);
   const userMenuRef = useRef(null);
+  const firstAuthInputRef = useRef(null);
 
   const isRegister = mode === "register";
 
@@ -56,6 +57,8 @@ function Auth({ currentUser, onLogin, onLogout }) {
       return undefined;
     }
 
+    firstAuthInputRef.current?.focus();
+
     const handleOutsideClick = (event) => {
       if (!authPanelRef.current?.contains(event.target)) {
         closePanel();
@@ -64,7 +67,7 @@ function Auth({ currentUser, onLogin, onLogout }) {
 
     document.addEventListener("pointerdown", handleOutsideClick);
     return () => document.removeEventListener("pointerdown", handleOutsideClick);
-  }, [isOpen]);
+  }, [isOpen, mode]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -274,6 +277,7 @@ function Auth({ currentUser, onLogin, onLogout }) {
                 placeholder="Username"
                 value={form.username}
                 onChange={handleChange}
+                ref={firstAuthInputRef}
                 required
               />
               <input
@@ -295,6 +299,7 @@ function Auth({ currentUser, onLogin, onLogout }) {
               placeholder="Username или email"
               value={form.login}
               onChange={handleChange}
+              ref={firstAuthInputRef}
               required
             />
           )}

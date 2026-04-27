@@ -124,6 +124,7 @@ def build_annotated_words(words):
         wpm = int(raw_word.get('wpm', 0) or 0)
         cpm = int(raw_word.get('cpm', 0) or 0)
         errors = int(raw_word.get('errors', 0) or 0)
+        had_mistake = bool(raw_word.get('had_mistake', False) or errors > 0)
         length = len(correct)
         max_length = max(len(correct), len(typed), 1)
         accuracy = get_word_accuracy(raw_word)
@@ -152,9 +153,11 @@ def build_annotated_words(words):
             'wpm': wpm,
             'cpm': cpm,
             'errors': errors,
+            'had_mistake': had_mistake,
             'length': length,
             'accuracy': accuracy,
             'has_error': errors > 0,
+            'breaks_clean_streak': had_mistake,
             'completion_ratio': min(1, len(typed) / max(length, 1)),
             'has_punctuation': has_punctuation,
             'has_capital': has_capital,
@@ -409,7 +412,7 @@ def build_streak_stats(words):
     current_error = 0
 
     for word in words:
-        if word['has_error']:
+        if word['breaks_clean_streak']:
             current_error += 1
             current_clean = 0
         else:

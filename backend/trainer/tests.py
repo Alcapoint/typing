@@ -137,3 +137,56 @@ class TrainingAnalysisServiceTests(TestCase):
 
         self.assertEqual(analysis.completion_score, 50)
         self.assertEqual(analysis.metrics['completion_ratio_percent'], 50)
+
+    def test_clean_streak_resets_after_corrected_mistake(self):
+        result = Result.objects.create(
+            speed=58,
+            accuracy=100.0,
+            total_time=12.0,
+            training_text='alpha bravo charlie delta',
+            mode='standard',
+            text_type='quote',
+            requested_size=4,
+            words=[
+                {
+                    'correct': 'alpha',
+                    'typed': 'alpha',
+                    'duration': 1.0,
+                    'wpm': 60,
+                    'cpm': 300,
+                    'errors': 0,
+                    'had_mistake': False,
+                },
+                {
+                    'correct': 'bravo',
+                    'typed': 'bravo',
+                    'duration': 1.1,
+                    'wpm': 55,
+                    'cpm': 275,
+                    'errors': 0,
+                    'had_mistake': True,
+                },
+                {
+                    'correct': 'charlie',
+                    'typed': 'charlie',
+                    'duration': 1.2,
+                    'wpm': 58,
+                    'cpm': 290,
+                    'errors': 0,
+                    'had_mistake': False,
+                },
+                {
+                    'correct': 'delta',
+                    'typed': 'delta',
+                    'duration': 1.0,
+                    'wpm': 60,
+                    'cpm': 300,
+                    'errors': 0,
+                    'had_mistake': False,
+                },
+            ],
+        )
+
+        analysis = ensure_result_analysis(result)
+
+        self.assertEqual(analysis.metrics['longest_clean_streak'], 2)
