@@ -29,6 +29,13 @@ def build_leaderboard_data(user_model, limit=10):
         [:limit]
     )
 
+    best_results = {
+        result.id: result
+        for result in Result.objects.filter(
+            id__in=[user.best_result_id for user in top_users if user.best_result_id]
+        ).select_related('language', 'user_text')
+    }
+
     return [
         {
             "id": user.best_result_id,
@@ -40,6 +47,36 @@ def build_leaderboard_data(user_model, limit=10):
             "speed": user.best_speed,
             "accuracy": user.best_accuracy,
             "date": user.best_date,
+            "language": (
+                LanguageSerializer(best_results[user.best_result_id].language).data
+                if user.best_result_id and best_results.get(user.best_result_id) and best_results[user.best_result_id].language
+                else None
+            ),
+            "is_personal_text": (
+                best_results[user.best_result_id].is_personal_text
+                if user.best_result_id and best_results.get(user.best_result_id)
+                else False
+            ),
+            "user_text_title": (
+                best_results[user.best_result_id].user_text.title
+                if user.best_result_id and best_results.get(user.best_result_id) and best_results[user.best_result_id].user_text
+                else ""
+            ),
+            "text_type": (
+                best_results[user.best_result_id].text_type
+                if user.best_result_id and best_results.get(user.best_result_id)
+                else ""
+            ),
+            "mode": (
+                best_results[user.best_result_id].mode
+                if user.best_result_id and best_results.get(user.best_result_id)
+                else ""
+            ),
+            "requested_size": (
+                best_results[user.best_result_id].requested_size
+                if user.best_result_id and best_results.get(user.best_result_id)
+                else 0
+            ),
         }
         for user in top_users
     ]
@@ -86,10 +123,16 @@ def build_leaderboard_user_detail(user):
                 "accuracy": result.accuracy,
                 "total_time": result.total_time,
                 "created_at": result.created_at,
+                "training_text": result.training_text,
                 "language": (
                     LanguageSerializer(result.language).data
                     if result.language else None
                 ),
+                "is_personal_text": result.is_personal_text,
+                "user_text_title": result.user_text.title if result.user_text else "",
+                "text_type": result.text_type,
+                "mode": result.mode,
+                "requested_size": result.requested_size,
             }
             for result in top_results
         ],

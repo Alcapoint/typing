@@ -112,6 +112,8 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
     ...limit,
     label: t(`trainer.timeLimits.${limit.value}`),
   }));
+  const selectedLanguageOption = languages.find((language) => language.code === selectedLanguage) || null;
+  const selectedUserText = userTexts.find((item) => item.id === selectedUserTextId) || null;
   const helpSections = [
     {
       title: t("trainer.helpSections.hotkeys"),
@@ -1018,6 +1020,15 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
         accuracy={accuracy}
         analysis={resultAnalysis}
         analysisLoading={isAnalysisLoading}
+        trainingMeta={{
+          language: selectedLanguageOption,
+          text_type: selectedTextType,
+          mode: trainingMode,
+          requested_size: requestedTextSize,
+          is_personal_text: selectedTextType === "user",
+          user_text_title: selectedUserText?.title || "",
+          training_text: text,
+        }}
         replayMaxLines={6}
         primaryActionLabel={t("trainer.back")}
         onPrimaryAction={handleRestartCurrentText}

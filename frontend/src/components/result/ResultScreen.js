@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import AnalysisProfileChart from "../charts/AnalysisProfileChart";
 import TrainingInteractiveChart from "../charts/TrainingInteractiveChart";
+import { TrainingSettingsSummary } from "../training/TrainingMeta";
 import { useI18n } from "../../i18n";
 import { localizeAnalysis } from "../../utils/analysisI18n";
 
@@ -299,6 +300,7 @@ function ResultScreen({
   accuracy,
   analysis = null,
   analysisLoading = false,
+  trainingMeta = null,
   fixedScreen = true,
   replayMaxLines = 6,
   replayClassName = "",
@@ -429,6 +431,13 @@ function ResultScreen({
       >
         <h1>{resolvedTitle}</h1>
         {subtitle ? <p className="result-subtitle">{subtitle}</p> : null}
+        {trainingMeta ? (
+          <TrainingSettingsSummary
+            training={trainingMeta}
+            className="result-training-meta"
+            compact
+          />
+        ) : null}
 
         <div
           className={[

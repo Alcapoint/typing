@@ -3,6 +3,7 @@ import { useHistory } from "react-router-dom";
 import api from "../../api";
 import TrainingMiniChart from "../../components/charts/TrainingMiniChart";
 import LoadingHint from "../../components/feedback/LoadingHint";
+import { TrainingSettingsSummary } from "../../components/training/TrainingMeta";
 import { useI18n } from "../../i18n";
 import {
   addComparisonTrainingId,
@@ -109,7 +110,7 @@ function HistoryPage({ currentUser }) {
             <div className="history-card-top">
               <div>
                 <h3 className="history-card-date">{formatDateTime(item.created_at, locale)}</h3>
-                <p className="history-text-preview">{item.training_text}</p>
+                <TrainingSettingsSummary training={item} className="history-training-meta" compact />
               </div>
               <div className="history-card-actions">
                 {item.is_personal_text ? (

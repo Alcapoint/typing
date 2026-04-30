@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import api from "../../api";
 import LoadingHint from "../../components/feedback/LoadingHint";
+import {
+  TrainingSettingsSummary,
+  TrainingTextButton,
+} from "../../components/training/TrainingMeta";
 import { useI18n } from "../../i18n";
 import { formatDateTime } from "../../utils/date";
 import {
@@ -309,7 +313,15 @@ function ComparisonSlot({ item, index, locale, t, onChoose, onRemove }) {
             <span className="comparison-slot-number">#{index + 1}</span>
             <strong>{formatDateTime(item.created_at, locale)}</strong>
           </div>
-          <p className="history-text-preview comparison-slot-preview">{item.training_text}</p>
+          <div className="comparison-slot-meta">
+            <TrainingSettingsSummary training={item} className="comparison-slot-training-meta" compact />
+            <TrainingTextButton
+              text={item.training_text}
+              title={t("trainingMeta.fullTextTitle")}
+              subtitle={formatDateTime(item.created_at, locale)}
+              buttonClassName="comparison-slot-text-button"
+            />
+          </div>
           <div className="comparison-slot-stats">
             <span>{item.speed} WPM</span>
             <span>{Number(item.accuracy || 0).toFixed(1)}%</span>

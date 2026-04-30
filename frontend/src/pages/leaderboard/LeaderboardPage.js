@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import api from "../../api";
 import TrainingInteractiveChart from "../../components/charts/TrainingInteractiveChart";
 import LoadingHint from "../../components/feedback/LoadingHint";
+import { TrainingSettingsSummary } from "../../components/training/TrainingMeta";
 import { useI18n } from "../../i18n";
 import { formatDateTime } from "../../utils/date";
 
@@ -51,7 +52,7 @@ function TrainingSnapshotCard({ item, index, locale, t }) {
       </div>
 
       <div className="mini-training-meta">
-        <span>{item.language?.flag_emoji || "🌐"} {item.language?.native_name || t("leaderboard.languageMissing")}</span>
+        <TrainingSettingsSummary training={item} compact />
       </div>
     </div>
   );
@@ -142,9 +143,9 @@ function LeaderboardProfileModal({ detail, loading, onClose }) {
                 {bestTraining ? (
                   <>
                     <div className="leaderboard-best-meta">
-                      <span>{bestTraining.language?.flag_emoji || "🌐"} {bestTraining.language?.native_name || t("leaderboard.languageMissing")}</span>
                       <span>{formatDateTime(bestTraining.created_at, locale)}</span>
                     </div>
+                    <TrainingSettingsSummary training={bestTraining} className="leaderboard-training-meta" compact />
                     <TrainingInteractiveChart
                       words={bestTraining.words || []}
                       className="leaderboard-chart"
@@ -265,6 +266,7 @@ function LeaderboardPage() {
 
                   <div className="leaderboard-name-row">
                     <span className="leaderboard-date-chip">{formatDateTime(item.date, locale)}</span>
+                    <TrainingSettingsSummary training={item} className="leaderboard-training-meta" compact />
                   </div>
                 </div>
               </button>

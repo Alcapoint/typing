@@ -69,6 +69,7 @@ function TrainingDetailPage({ currentUser }) {
       wpm={training.speed}
       accuracy={training.accuracy}
       analysis={training.analysis}
+      trainingMeta={training}
       fixedScreen
       replayMaxLines={5}
       replayClassName="history-detail-replay"

@@ -207,6 +207,22 @@ const messages = {
       place: "Место",
       noResults: "Пока в лидерборде нет результатов.",
     },
+    trainingMeta: {
+      labels: {
+        language: "Язык",
+        textType: "Текст",
+        mode: "Режим",
+        size: "Размер",
+        source: "Источник",
+      },
+      values: {
+        replayTextType: "Повтор",
+      },
+      openText: "Текст",
+      openTextAria: "Открыть полный текст тренировки",
+      fullTextTitle: "Полный текст тренировки",
+      fullTextSubtitle: "Текст, который использовался в этой тренировке.",
+    },
     trainer: {
       addOwnTextFirst: "Сначала добавьте свой текст в профиле и выберите его.",
       loadTextError: "Не удалось загрузить текст для выбранных настроек.",
@@ -233,6 +249,7 @@ const messages = {
         nonsense: "Несуществующие слова",
         words: "Случайные слова",
         user: "Свой текст",
+        replay: "Повтор",
       },
       trainingModes: {
         standard: "Обычный",
@@ -545,6 +562,22 @@ const messages = {
       place: "Place",
       noResults: "There are no leaderboard results yet.",
     },
+    trainingMeta: {
+      labels: {
+        language: "Language",
+        textType: "Text",
+        mode: "Mode",
+        size: "Size",
+        source: "Source",
+      },
+      values: {
+        replayTextType: "Replay",
+      },
+      openText: "Text",
+      openTextAria: "Open the full training text",
+      fullTextTitle: "Full training text",
+      fullTextSubtitle: "The text that was used for this training run.",
+    },
     trainer: {
       addOwnTextFirst: "Add your own text in the profile first and then select it.",
       loadTextError: "Failed to load text for the selected settings.",
@@ -571,6 +604,7 @@ const messages = {
         nonsense: "Nonsense words",
         words: "Random words",
         user: "Own text",
+        replay: "Replay",
       },
       trainingModes: {
         standard: "Standard",
