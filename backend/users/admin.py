@@ -111,6 +111,7 @@ class AdminUser(UserAdmin):
                     'country',
                     'age',
                     'avatar',
+                    'avatar_upload_count',
                     'avatar_preview',
                 ),
             },
@@ -152,6 +153,7 @@ class AdminUser(UserAdmin):
                     'last_name',
                     'age',
                     'country',
+                    'avatar_upload_count',
                     'password1',
                     'password2',
                     'is_active',
@@ -275,13 +277,8 @@ class SessionTokenAdmin(admin.ModelAdmin):
         'token_hash',
     )
     readonly_fields = (
-        'user',
-        'token_type',
-        'token_hash',
         'created_at',
         'last_used_at',
-        'expires_at',
-        'revoked_at',
         'status_badge',
     )
     autocomplete_fields = ('user',)

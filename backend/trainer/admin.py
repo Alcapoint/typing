@@ -10,6 +10,7 @@ from .models import (
     Language,
     Result,
     Text,
+    TrainingAnalysis,
     TrainingSession,
     UserText,
 )
@@ -39,6 +40,33 @@ class HelpItemInline(admin.TabularInline):
     extra = 0
     ordering = ('sort_order', 'id')
     fields = ('text', 'sort_order')
+
+
+class TrainingAnalysisInline(admin.StackedInline):
+    model = TrainingAnalysis
+    extra = 0
+    can_delete = True
+    fieldsets = (
+        (
+            'Аналитика',
+            {
+                'fields': (
+                    'analysis_version',
+                    'headline',
+                    'focus_area',
+                    'overall_score',
+                    'speed_score',
+                    'accuracy_score',
+                    'stability_score',
+                    'completion_score',
+                    'metrics',
+                    'strengths',
+                    'pain_points',
+                    'recommendations',
+                ),
+            },
+        ),
+    )
 
 
 @admin.register(Language)
@@ -133,7 +161,6 @@ class ResultAdmin(admin.ModelAdmin):
     )
     readonly_fields = (
         'created_at',
-        'words',
         'training_excerpt',
         'words_total',
     )
@@ -142,6 +169,7 @@ class ResultAdmin(admin.ModelAdmin):
     date_hierarchy = 'created_at'
     list_per_page = 100
     actions = ('mark_as_personal', 'mark_as_common')
+    inlines = (TrainingAnalysisInline,)
     fieldsets = (
         (
             'Основное',
@@ -154,6 +182,9 @@ class ResultAdmin(admin.ModelAdmin):
                     'language',
                     'is_personal_text',
                     'user_text',
+                    'text_type',
+                    'mode',
+                    'requested_size',
                     'created_at',
                 )
             },
@@ -234,7 +265,6 @@ class TrainingSessionAdmin(admin.ModelAdmin):
     readonly_fields = (
         'token',
         'token_short',
-        'client_fingerprint',
         'training_excerpt',
         'created_at',
         'status_badge',
@@ -375,6 +405,75 @@ class UserTextAdmin(admin.ModelAdmin):
     @admin.display(description='Превью')
     def content_excerpt(self, obj):
         return (obj.content[:250] + '...') if len(obj.content) > 250 else obj.content
+
+
+@admin.register(TrainingAnalysis)
+class TrainingAnalysisAdmin(admin.ModelAdmin):
+    list_display = (
+        'id',
+        'result',
+        'analysis_version',
+        'overall_score',
+        'speed_score',
+        'accuracy_score',
+        'stability_score',
+        'completion_score',
+        'updated_at',
+    )
+    list_filter = (
+        'analysis_version',
+        'created_at',
+        'updated_at',
+    )
+    search_fields = (
+        'headline',
+        'focus_area',
+        'result__user__username',
+        'result__user__email',
+        'result__training_text',
+    )
+    autocomplete_fields = ('result',)
+    ordering = ('-updated_at', '-id')
+    readonly_fields = ('created_at', 'updated_at')
+    date_hierarchy = 'updated_at'
+    fieldsets = (
+        (
+            'Связь',
+            {
+                'fields': (
+                    'result',
+                    'analysis_version',
+                    'created_at',
+                    'updated_at',
+                ),
+            },
+        ),
+        (
+            'Оценки',
+            {
+                'fields': (
+                    'headline',
+                    'focus_area',
+                    'overall_score',
+                    'speed_score',
+                    'accuracy_score',
+                    'stability_score',
+                    'completion_score',
+                ),
+            },
+        ),
+        (
+            'Детали',
+            {
+                'fields': (
+                    'metrics',
+                    'strengths',
+                    'pain_points',
+                    'recommendations',
+                ),
+            },
+        ),
+    )
 
 
 @admin.register(HelpSection)
