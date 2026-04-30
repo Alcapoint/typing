@@ -1,20 +1,21 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-
-const BRAND_WORDS = ["fast", "accurate", "easy", "smooth"];
+import { useI18n } from "../../i18n";
 
 function BrandLogo() {
+  const { t } = useI18n();
   const [activeWordIndex, setActiveWordIndex] = useState(0);
   const [isPressed, setIsPressed] = useState(false);
   const pressTimeoutRef = useRef(null);
+  const brandWords = t("brand.words");
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
-      setActiveWordIndex((currentIndex) => (currentIndex + 1) % BRAND_WORDS.length);
+      setActiveWordIndex((currentIndex) => (currentIndex + 1) % brandWords.length);
     }, 1000);
 
     return () => window.clearInterval(intervalId);
-  }, []);
+  }, [brandWords.length]);
 
   useEffect(() => () => {
     if (pressTimeoutRef.current) {
@@ -59,7 +60,7 @@ function BrandLogo() {
             className="brand-word-track"
             style={{ transform: `translateY(calc(-1 * ${activeWordIndex} * var(--brand-word-height)))` }}
           >
-            {BRAND_WORDS.map((word) => (
+            {brandWords.map((word) => (
               <span key={word} className="brand-word">
                 {word}
               </span>

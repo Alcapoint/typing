@@ -4,6 +4,8 @@ import "../App.css";
 import api from "../api";
 import { clearToken, hasToken } from "../api/baseClient";
 import AppHeader from "../components/layout/AppHeader";
+import { useI18n } from "../i18n";
+import ComparisonPage from "../pages/comparison/ComparisonPage";
 import HistoryPage from "../pages/history/HistoryPage";
 import LeaderboardPage from "../pages/leaderboard/LeaderboardPage";
 import ProfilePage from "../pages/profile/ProfilePage";
@@ -12,6 +14,7 @@ import TrainingDetailPage from "../pages/training-detail/TrainingDetailPage";
 import { getIsMobileViewport } from "../utils/device";
 
 function App() {
+  const { t } = useI18n();
   const [currentUser, setCurrentUser] = useState(null);
   const [isMobileViewport, setIsMobileViewport] = useState(getIsMobileViewport);
   const [isScrollTopVisible, setIsScrollTopVisible] = useState(false);
@@ -128,6 +131,10 @@ function App() {
             <HistoryPage currentUser={currentUser} />
           </Route>
 
+          <Route exact path="/comparison">
+            <ComparisonPage currentUser={currentUser} />
+          </Route>
+
           <Route exact path="/profile">
             <ProfilePage
               currentUser={currentUser}
@@ -154,13 +161,13 @@ function App() {
         className={`scroll-top-button ${isScrollTopVisible ? "visible" : ""}`}
         type="button"
         onClick={handleScrollTop}
-        aria-label="Прокрутить наверх"
+        aria-label={t("app.scrollTopAria")}
       >
         <span className="scroll-top-icon" aria-hidden="true">
           <span className="scroll-top-chevron scroll-top-chevron-large">^</span>
           <span className="scroll-top-chevron scroll-top-chevron-small">^</span>
         </span>
-        <span className="scroll-top-label">Наверх</span>
+        <span className="scroll-top-label">{t("app.scrollTopLabel")}</span>
       </button>
     </div>
   );

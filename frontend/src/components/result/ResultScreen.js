@@ -1,29 +1,99 @@
 import { useEffect, useRef, useState } from "react";
+import AnalysisProfileChart from "../charts/AnalysisProfileChart";
 import TrainingInteractiveChart from "../charts/TrainingInteractiveChart";
+import { useI18n } from "../../i18n";
+import { localizeAnalysis } from "../../utils/analysisI18n";
 
 const getArray = (value) => (Array.isArray(value) ? value : []);
 const getScoreLabel = (value) => `${Math.round(Number(value || 0))}%`;
-const getSegmentLabel = (label) => ({
-  start: "Старт",
-  middle: "Середина",
-  finish: "Финиш",
-}[label] || label);
-const getFocusLabel = (label) => ({
-  accuracy: "точность",
-  clean_run: "чистые серии",
-  speed: "скорость",
-  speed_control: "контроль на темпе",
-  rhythm: "ровность ритма",
-  endurance: "выносливость",
-  recovery: "восстановление после ошибки",
-  hard_words: "длинные и сложные слова",
-  completion: "завершённость",
-}[label] || label);
-const getPositionLabel = (label) => ({
-  start: "Начало слова",
-  middle: "Середина слова",
-  finish: "Конец слова",
-}[label] || label);
+const getFocusLabel = (label, t) => t(`result.focusLabels.${label}`) || label;
+
+const getDerivedSpeedMetrics = (words = [], totalTime = 0) => {
+  const totalTimeValue = Number(totalTime || 0);
+  if (!words.length || !totalTimeValue) {
+    return {
+      wpm: 0,
+      rwpm: 0,
+      burst: 0,
+    };
+  }
+
+  let correctCharsWithSpaces = 0;
+  let rawCharsWithSpaces = 0;
+  let burstChars = 0;
+
+  words.forEach((word, index) => {
+    const correct = String(word.correct || "");
+    const typed = String(word.typed || "");
+    const separator = index < words.length - 1 ? 1 : 0;
+    rawCharsWithSpaces += typed.length + separator;
+    burstChars += Math.max(correct.length, typed.length, 1);
+    if (typed === correct) {
+      correctCharsWithSpaces += correct.length + separator;
+    }
+  });
+
+  const minutes = totalTimeValue / 60;
+
+  return {
+    wpm: minutes ? Math.round((correctCharsWithSpaces / 5) / minutes) : 0,
+    rwpm: minutes ? Math.round((rawCharsWithSpaces / 5) / minutes) : 0,
+    burst: minutes ? Math.round((burstChars / 5) / minutes) : 0,
+  };
+};
+
+function AnimatedMetricValue({ value = 0, digits = 0, animateKey = "" }) {
+  const [displayValue, setDisplayValue] = useState(0);
+
+  useEffect(() => {
+    let frameId = 0;
+    let startedAt = 0;
+    const duration = 1450;
+    const target = Number(value || 0);
+
+    const tick = (timestamp) => {
+      if (!startedAt) {
+        startedAt = timestamp;
+      }
+
+      const progress = Math.min((timestamp - startedAt) / duration, 1);
+      const eased = 1 - ((1 - progress) ** 3);
+      setDisplayValue(target * eased);
+
+      if (progress < 1) {
+        frameId = window.requestAnimationFrame(tick);
+      }
+    };
+
+    setDisplayValue(0);
+    frameId = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(frameId);
+  }, [animateKey, value]);
+
+  return digits > 0
+    ? displayValue.toFixed(digits)
+    : Math.round(displayValue);
+}
+
+function ResultStatInline({
+  label,
+  value,
+  digits = 0,
+  animateKey = "",
+  suffix = "",
+  description = "",
+}) {
+  return (
+    <div className="stat-card stat-card-inline stat-card-inline-help">
+      <span className="stat-label">{label}</span>
+      <strong className="stat-value">
+        <AnimatedMetricValue value={value} digits={digits} animateKey={animateKey} />
+      </strong>
+      {suffix ? <span className="stat-suffix">{suffix}</span> : null}
+      {description ? <div className="stat-help-tooltip">{description}</div> : null}
+    </div>
+  );
+}
 
 function useInViewOnce(active = true) {
   const elementRef = useRef(null);
@@ -154,6 +224,8 @@ function AnalysisReveal({
 }
 
 function AnalysisMetricHelp({ label, description }) {
+  const { t } = useI18n();
+
   if (!description) {
     return null;
   }
@@ -163,7 +235,7 @@ function AnalysisMetricHelp({ label, description }) {
       <button
         className="analysis-help-button"
         type="button"
-        aria-label={`Описание метрики ${label}`}
+        aria-label={t("result.metricAria", { label })}
       >
         ?
       </button>
@@ -218,7 +290,8 @@ function AnalysisGaugeCard({ card, active = true }) {
 }
 
 function ResultScreen({
-  title = "Результат",
+  title,
+  subtitle = "",
   words,
   replayText = "",
   totalTime,
@@ -234,32 +307,30 @@ function ResultScreen({
   secondaryActionLabel,
   onSecondaryAction,
 }) {
+  const { locale, t } = useI18n();
   const [replayIndex, setReplayIndex] = useState(-1);
   const [isAnalysisOpen, setIsAnalysisOpen] = useState(false);
   const replayWordRefs = useRef([]);
   const analysisPanelRef = useRef(null);
   const [heroRef, isHeroVisible] = useInViewOnce(Boolean(analysis) && isAnalysisOpen);
   const closeResultScreen = onSecondaryAction || onPrimaryAction || null;
+  const resolvedTitle = title || t("result.title");
+  const localizedAnalysis = localizeAnalysis(analysis, locale);
+  const derivedSpeedMetrics = getDerivedSpeedMetrics(words, totalTime);
+  const displayWpm = words.length ? derivedSpeedMetrics.wpm : Number(wpm || 0);
+  const displayRwpm = derivedSpeedMetrics.rwpm;
+  const displayBurst = derivedSpeedMetrics.burst;
+  const metricAnimationKey = `${resolvedTitle}-${words.length}-${Number(totalTime || 0)}`;
 
-  const strengths = getArray(analysis?.strengths);
-  const painPoints = getArray(analysis?.pain_points);
-  const recommendations = getArray(analysis?.recommendations);
-  const scorecards = getArray(analysis?.metrics?.scorecards);
-  const difficultWords = getArray(analysis?.metrics?.difficult_words).slice(0, 5);
-  const strongestWords = getArray(analysis?.metrics?.strongest_words).slice(0, 5);
-  const hesitationWords = getArray(analysis?.metrics?.hesitation_words).slice(0, 5);
-  const rushedWords = getArray(analysis?.metrics?.rushed_words).slice(0, 5);
-  const errorPatterns = getArray(analysis?.metrics?.error_patterns).slice(0, 5);
-  const errorBursts = getArray(analysis?.metrics?.error_bursts).slice(0, 4);
-  const segments = getArray(analysis?.metrics?.segments);
-  const lengthBreakdown = getArray(analysis?.metrics?.word_length_breakdown);
-  const positionDistribution = analysis?.metrics?.error_position_distribution || {};
-  const focusCard = scorecards.length
-    ? scorecards.reduce((lowest, card) => (
+  const summaryCards = getArray(localizedAnalysis?.metrics?.summary_cards);
+  const segments = getArray(localizedAnalysis?.metrics?.segments);
+  const lengthBreakdown = getArray(localizedAnalysis?.metrics?.word_length_breakdown);
+  const focusCard = summaryCards.length
+    ? summaryCards.reduce((lowest, card) => (
       Number(card.score) < Number(lowest.score) ? card : lowest
-    ), scorecards[0])
+    ), summaryCards[0])
     : null;
-
+  const recoveryExamples = localizedAnalysis?.metrics?.recovery_examples || {};
   useEffect(() => {
     let index = 0;
     const stepDuration = Math.max(16, 2000 / Math.max(words.length, 1));
@@ -278,7 +349,7 @@ function ResultScreen({
 
   useEffect(() => {
     setIsAnalysisOpen(false);
-  }, [analysis?.headline, words]);
+  }, [localizedAnalysis?.headline, words]);
 
   useEffect(() => {
     if (!isAnalysisOpen || !analysisPanelRef.current) {
@@ -339,21 +410,6 @@ function ResultScreen({
     );
   };
 
-  const renderWordInsightItem = (item, index) => (
-    <li key={`${item.correct}-${item.typed}-${item.wpm}-${index}`}>
-      <div className="analysis-word-headline">
-        <strong>{item.correct}</strong>
-        <span>{getScoreLabel(item.accuracy)}</span>
-      </div>
-      <div className="analysis-word-meta">
-        <span>Ввод: {item.typed || "—"}</span>
-        <span>{item.wpm} WPM</span>
-        {"errors" in item ? <span>{item.errors} ошибок</span> : null}
-        {"duration" in item ? <span>{Number(item.duration).toFixed(2)} с</span> : null}
-      </div>
-    </li>
-  );
-
   return (
     <div
       className={[
@@ -371,25 +427,8 @@ function ResultScreen({
         className="result-screen-body"
         onClick={(event) => event.stopPropagation()}
       >
-        <h1>{title}</h1>
-
-        <div className="stat-showcase">
-          <div className="stat-card stat-card-accent">
-            <span className="stat-label">Speed</span>
-            <strong className="stat-value">{wpm}</strong>
-            <span className="stat-suffix">WPM</span>
-          </div>
-          <div className="stat-card">
-            <span className="stat-label">Accuracy</span>
-            <strong className="stat-value">{accuracy}</strong>
-            <span className="stat-suffix">%</span>
-          </div>
-          <div className="stat-card">
-            <span className="stat-label">Time</span>
-            <strong className="stat-value">{Number(totalTime || 0).toFixed(1)}</strong>
-            <span className="stat-suffix">s</span>
-          </div>
-        </div>
+        <h1>{resolvedTitle}</h1>
+        {subtitle ? <p className="result-subtitle">{subtitle}</p> : null}
 
         <div
           className={[
@@ -408,6 +447,43 @@ function ResultScreen({
             : words.map((word, index) => renderReplayWord(word, index))}
         </div>
 
+        <div className="stat-showcase">
+          <ResultStatInline
+            label="WPM"
+            value={displayWpm}
+            animateKey={`${metricAnimationKey}-wpm`}
+            description={t("result.wpmDescription")}
+          />
+          <ResultStatInline
+            label="rWPM"
+            value={displayRwpm}
+            animateKey={`${metricAnimationKey}-rwpm`}
+            description={t("result.rwpmDescription")}
+          />
+          <ResultStatInline
+            label="BURST"
+            value={displayBurst}
+            animateKey={`${metricAnimationKey}-burst`}
+            description={t("result.burstDescription")}
+          />
+          <ResultStatInline
+            label={t("result.statLabels.accuracy")}
+            value={Number(accuracy || 0)}
+            digits={1}
+            animateKey={`${metricAnimationKey}-accuracy`}
+            suffix="%"
+            description={t("result.accuracyDescription")}
+          />
+          <ResultStatInline
+            label={t("result.statLabels.time")}
+            value={Number(totalTime || 0)}
+            digits={1}
+            animateKey={`${metricAnimationKey}-time`}
+            suffix="s"
+            description={t("result.timeDescription")}
+          />
+        </div>
+
         <TrainingInteractiveChart
           words={words}
           className={[
@@ -416,7 +492,7 @@ function ResultScreen({
           ].join(" ").trim()}
         />
 
-        {(analysisLoading || analysis) && (
+        {(analysisLoading || localizedAnalysis) && (
           <div className="analysis-toggle-shell">
             <button
               className={`analysis-toggle ${isAnalysisOpen ? "open" : ""}`}
@@ -437,7 +513,7 @@ function ResultScreen({
                     />
                   </svg>
                 </span>
-                <span className="analysis-toggle-label">Детальный разбор</span>
+                <span className="analysis-toggle-label">{t("result.detailedAnalysis")}</span>
               </span>
             </button>
 
@@ -445,10 +521,10 @@ function ResultScreen({
               <section ref={analysisPanelRef} className="analysis-panel">
                         {analysisLoading ? (
                   <div className="analysis-loading-copy">
-                    <span className="analysis-kicker">Разбор тренировки</span>
-                    <h2>Формируется аналитический профиль.</h2>
+                    <span className="analysis-kicker">{t("result.analysisKicker")}</span>
+                    <h2>{t("result.analysisPreparing")}</h2>
                     <p className="analysis-subtitle">
-                      Выполняется расчёт темпа, ритма, ошибок и структуры слов.
+                      {t("result.analysisPreparingBody")}
                     </p>
                   </div>
                 ) : (
@@ -459,7 +535,7 @@ function ResultScreen({
                     >
                       <div className="analysis-hero-gauge-shell">
                         <AnalysisGauge
-                          score={analysis.overall_score}
+                          score={localizedAnalysis.overall_score}
                           gaugeId="overall"
                           large
                           animate={isHeroVisible}
@@ -467,42 +543,44 @@ function ResultScreen({
                       </div>
 
                       <div className="analysis-hero-copy">
-                        <span className="analysis-kicker">Разбор тренировки</span>
-                        <h2>{analysis.headline}</h2>
+                        <span className="analysis-kicker">{t("result.analysisKicker")}</span>
+                        <h2>{localizedAnalysis.headline}</h2>
                         <p className="analysis-subtitle">
-                          {analysis?.metrics?.coach_note || analysis?.metrics?.band_label}
+                          {localizedAnalysis?.metrics?.coach_note || localizedAnalysis?.metrics?.band_label}
                         </p>
 
                         <div className="analysis-facts-row">
                           <div className="analysis-fact-pill">
-                            <span className="analysis-fact-label">Общий уровень</span>
-                            <strong>{analysis?.metrics?.band_label}</strong>
+                            <span className="analysis-fact-label">{t("result.overallLevel")}</span>
+                            <strong>{localizedAnalysis?.metrics?.band_label}</strong>
                           </div>
                           {focusCard ? (
                             <div className="analysis-fact-pill">
-                              <span className="analysis-fact-label">Зона роста</span>
-                              <strong>{getFocusLabel(focusCard.id)}</strong>
+                              <span className="analysis-fact-label">{t("result.growthZone")}</span>
+                              <strong>{getFocusLabel(focusCard.id, t)}</strong>
                             </div>
                           ) : null}
                           <div className="analysis-fact-pill">
-                            <span className="analysis-fact-label">Ошибки</span>
-                            <strong>{analysis?.metrics?.total_char_errors || 0} символов</strong>
+                            <span className="analysis-fact-label">{t("result.cleanStreak")}</span>
+                            <strong>{localizedAnalysis?.metrics?.longest_clean_streak || 0} {t("result.wordsSuffix")}</strong>
                           </div>
                           <div className="analysis-fact-pill">
-                            <span className="analysis-fact-label">Чистые слова</span>
-                            <strong>{getScoreLabel(analysis?.metrics?.error_free_ratio_percent)}</strong>
+                            <span className="analysis-fact-label">{t("result.cleanWords")}</span>
+                            <strong>{getScoreLabel(localizedAnalysis?.metrics?.error_free_ratio_percent)}</strong>
                           </div>
-                          <div className="analysis-fact-pill">
-                            <span className="analysis-fact-label">Восстановление</span>
-                            <strong>{getScoreLabel(analysis?.metrics?.recovery_ratio_percent)}</strong>
-                          </div>
+                          {localizedAnalysis?.metrics?.recovery_opportunities_count ? (
+                            <div className="analysis-fact-pill">
+                              <span className="analysis-fact-label">{t("result.recoveryFixes")}</span>
+                              <strong>{getScoreLabel(localizedAnalysis?.metrics?.self_correction_ratio_percent)}</strong>
+                            </div>
+                          ) : null}
                         </div>
                       </div>
                     </div>
 
-                    {scorecards.length ? (
+                    {summaryCards.length ? (
                       <div className="analysis-gauge-grid">
-                        {scorecards.map((card) => (
+                        {summaryCards.map((card) => (
                           <AnalysisGaugeCard
                             key={card.id || card.label}
                             card={card}
@@ -512,196 +590,57 @@ function ResultScreen({
                       </div>
                     ) : null}
 
-                    <div className="analysis-columns">
-                      <AnalysisReveal active={isAnalysisOpen} className="analysis-block analysis-insight-block">
-                        <h3>Сильные стороны</h3>
-                        <ul className="analysis-list">
-                          {strengths.map((item) => (
-                            <li key={item.title}>
-                              <strong>{item.title}</strong>
-                              <span>{item.description}</span>
-                            </li>
-                          ))}
-                        </ul>
+                    {localizedAnalysis?.metrics?.recovery_opportunities_count ? (
+                      <AnalysisReveal active={isAnalysisOpen} className="analysis-detail-card analysis-recovery-card">
+                        <AnalysisCardHeading
+                          title={t("result.recoveryTitle")}
+                          description={t("result.recoveryDescription")}
+                        />
+                        <div className="analysis-recovery-stats">
+                          <div className="analysis-fact-pill">
+                            <span className="analysis-fact-label">{t("result.correctedInsideWord")}</span>
+                            <strong>{getScoreLabel(localizedAnalysis?.metrics?.self_correction_ratio_percent)}</strong>
+                          </div>
+                          <div className="analysis-fact-pill">
+                            <span className="analysis-fact-label">{t("result.stableNextWord")}</span>
+                            <strong>{getScoreLabel(localizedAnalysis?.metrics?.stable_follow_up_ratio_percent)}</strong>
+                          </div>
+                          <div className="analysis-fact-pill">
+                            <span className="analysis-fact-label">{t("result.averageSpeedDrop")}</span>
+                            <strong>{localizedAnalysis?.metrics?.recovery_examples?.average_speed_drop || 0} WPM</strong>
+                          </div>
+                        </div>
+
+                        {recoveryExamples.weak_examples?.length ? (
+                          <div className="analysis-recovery-note">
+                            {t("result.weakExamplePrefix")} <strong>{recoveryExamples.weak_examples[0].after}</strong>
+                            {recoveryExamples.weak_examples[0].next
+                              ? <> {t("result.weakExampleMiddle")} <strong>{recoveryExamples.weak_examples[0].next}</strong> {t("result.weakExampleSuffix")}</>
+                              : <> {t("result.weakExampleNone")}</>}
+                          </div>
+                        ) : recoveryExamples.good_examples?.length ? (
+                          <div className="analysis-recovery-note">
+                            {t("result.goodExamplePrefix")} <strong>{recoveryExamples.good_examples[0].after}</strong>
+                            {recoveryExamples.good_examples[0].corrected_inside_word
+                              ? <> {t("result.goodExampleCorrected")}</>
+                              : <> {t("result.goodExampleRecovered")}</>}
+                          </div>
+                        ) : null}
                       </AnalysisReveal>
+                    ) : null}
 
-                      <AnalysisReveal active={isAnalysisOpen} className="analysis-block analysis-insight-block">
-                        <h3>Факторы снижения оценки</h3>
-                        <ul className="analysis-list">
-                          {painPoints.map((item) => (
-                            <li key={item.title}>
-                              <strong>{item.title}</strong>
-                              <span>{item.description}</span>
-                            </li>
-                          ))}
-                        </ul>
+                    {(segments.length || lengthBreakdown.length) ? (
+                      <AnalysisReveal active={isAnalysisOpen} className="analysis-detail-card">
+                        <AnalysisCardHeading
+                          title={t("result.typingProfile")}
+                          description={t("result.typingProfileDescription")}
+                        />
+                        <AnalysisProfileChart
+                          segments={segments}
+                          lengthBreakdown={lengthBreakdown}
+                        />
                       </AnalysisReveal>
-                    </div>
-
-                    <AnalysisReveal active={isAnalysisOpen} className="analysis-block analysis-insight-block">
-                      <h3>Рекомендации</h3>
-                      <ul className="analysis-list">
-                        {recommendations.map((item) => (
-                          <li key={item.title}>
-                            <strong>{item.title}</strong>
-                            <span>{item.description}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </AnalysisReveal>
- 
-                    <div className="analysis-detail-grid">
-                      {strongestWords.length ? (
-                        <AnalysisReveal active={isAnalysisOpen} className="analysis-detail-card">
-                          <AnalysisCardHeading
-                            title="Лучшие слова"
-                            description="Слова с наиболее стабильным сочетанием темпа и точности."
-                          />
-                          <ul className="analysis-word-list">
-                            {strongestWords.map((item, index) => renderWordInsightItem(item, index))}
-                          </ul>
-                        </AnalysisReveal>
-                      ) : null}
-
-                      {difficultWords.length ? (
-                        <AnalysisReveal active={isAnalysisOpen} className="analysis-detail-card">
-                          <AnalysisCardHeading
-                            title="Проблемные слова"
-                            description="Слова с наибольшим вкладом в снижение итоговой оценки."
-                          />
-                          <ul className="analysis-word-list">
-                            {difficultWords.map((item, index) => renderWordInsightItem(item, index))}
-                          </ul>
-                        </AnalysisReveal>
-                      ) : null}
-
-                      {hesitationWords.length ? (
-                        <AnalysisReveal active={isAnalysisOpen} className="analysis-detail-card">
-                          <AnalysisCardHeading
-                            title="Осторожный набор"
-                            description="Слова без ошибок, где темп ниже текущего рабочего уровня."
-                          />
-                          <ul className="analysis-word-list">
-                            {hesitationWords.map((item, index) => renderWordInsightItem(item, index))}
-                          </ul>
-                        </AnalysisReveal>
-                      ) : null}
-
-                      {rushedWords.length ? (
-                        <AnalysisReveal active={isAnalysisOpen} className="analysis-detail-card">
-                          <AnalysisCardHeading
-                            title="Избыточное ускорение"
-                            description="Слова, где рост темпа сопровождался ошибками."
-                          />
-                          <ul className="analysis-word-list">
-                            {rushedWords.map((item, index) => renderWordInsightItem(item, index))}
-                          </ul>
-                        </AnalysisReveal>
-                      ) : null}
-
-                      {errorPatterns.length ? (
-                        <AnalysisReveal active={isAnalysisOpen} className="analysis-detail-card">
-                          <AnalysisCardHeading
-                            title="Повторяющиеся ошибки"
-                            description="Повторяющиеся замены символов в пределах одной тренировки."
-                          />
-                          <ul className="analysis-pattern-list">
-                            {errorPatterns.map((pattern) => (
-                              <li key={pattern.label}>
-                                <div className="analysis-pattern-top">
-                                  <strong>{pattern.label}</strong>
-                                  <span>{pattern.count} раз</span>
-                                </div>
-                                <div className="analysis-pattern-examples">
-                                  {getArray(pattern.examples).map((example, index) => (
-                                    <span key={`${pattern.label}-${index}`}>
-                                      {example.correct} -> {example.typed || "—"}
-                                    </span>
-                                  ))}
-                                </div>
-                              </li>
-                            ))}
-                          </ul>
-                        </AnalysisReveal>
-                      ) : null}
-
-                      {errorBursts.length ? (
-                        <AnalysisReveal active={isAnalysisOpen} className="analysis-detail-card">
-                          <AnalysisCardHeading
-                            title="Серии ошибок"
-                            description="Последовательности слов с несколькими ошибками подряд."
-                          />
-                          <ul className="analysis-burst-list">
-                            {errorBursts.map((burst, index) => (
-                              <li key={`${burst.words.join("-")}-${index}`}>
-                                <strong>{burst.words.join(" • ")}</strong>
-                                <span>{burst.words_count} слова подряд</span>
-                                <span>{burst.avg_wpm} WPM · {getScoreLabel(burst.avg_accuracy)}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </AnalysisReveal>
-                      ) : null}
-                    </div>
-
-                    <div className="analysis-summary-grid">
-                      {segments.length ? (
-                        <AnalysisReveal active={isAnalysisOpen} className="analysis-detail-card">
-                          <AnalysisCardHeading
-                            title="Динамика по дистанции"
-                            description="Сравнение старта, середины и финиша."
-                          />
-                          <div className="analysis-segment-row">
-                            {segments.map((segment) => (
-                              <div key={segment.label} className="analysis-segment-card">
-                                <span className="analysis-segment-label">{getSegmentLabel(segment.label)}</span>
-                                <strong>{segment.avg_wpm} WPM</strong>
-                                <span>{getScoreLabel(segment.avg_accuracy)} точность</span>
-                                <span>{getScoreLabel(segment.error_free_ratio_percent)} слов без ошибок</span>
-                                <span>Сложное слово: {segment.hardest_word.correct}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </AnalysisReveal>
-                      ) : null}
-
-                      {lengthBreakdown.length ? (
-                        <AnalysisReveal active={isAnalysisOpen} className="analysis-detail-card">
-                          <AnalysisCardHeading
-                            title="Слова по длине"
-                            description="Сравнение коротких, средних и длинных слов."
-                          />
-                          <div className="analysis-length-grid">
-                            {lengthBreakdown.map((bucket) => (
-                              <div key={bucket.id} className="analysis-length-card">
-                                <span className="analysis-metric-kicker">{bucket.label}</span>
-                                <strong>{getScoreLabel(bucket.avg_accuracy)}</strong>
-                                <span>{bucket.avg_wpm} WPM</span>
-                                <span>{getScoreLabel(bucket.error_free_ratio_percent)} чистых слов</span>
-                              </div>
-                            ))}
-                          </div>
-                        </AnalysisReveal>
-                      ) : null}
-
-                      {Object.keys(positionDistribution).length ? (
-                        <AnalysisReveal active={isAnalysisOpen} className="analysis-detail-card">
-                          <AnalysisCardHeading
-                            title="Зоны ошибок внутри слова"
-                            description="Распределение ошибок по началу, середине и концу слова."
-                          />
-                          <div className="analysis-position-grid">
-                            {["start", "middle", "finish"].map((zone) => (
-                              <div key={zone} className="analysis-position-card">
-                                <span className="analysis-metric-kicker">{getPositionLabel(zone)}</span>
-                                <strong>{getScoreLabel(positionDistribution?.[zone]?.percent)}</strong>
-                                <span>{positionDistribution?.[zone]?.count || 0} ошибок</span>
-                              </div>
-                            ))}
-                          </div>
-                        </AnalysisReveal>
-                      ) : null}
-                    </div>
+                    ) : null}
                   </>
                 )}
               </section>

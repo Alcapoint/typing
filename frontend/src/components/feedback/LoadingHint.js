@@ -1,12 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-
-const LOADING_HINTS = [
-  "Пожалуйста подождите",
-  "Еще чуть-чуть",
-  "Скоро все покажем",
-  "Вот-вот и все готово",
-  "Осталось немного",
-];
+import { useI18n } from "../../i18n";
 
 const SERVICE_SYMBOLS = ["#", "@", "%", "&", "*", "+", "=", "?", "/", "\\", "[", "]", "{", "}", "!", "~"];
 const SYMBOL_FILL_DURATION_MS = 200;
@@ -19,15 +12,15 @@ function getRandomServiceSymbol() {
   return SERVICE_SYMBOLS[Math.floor(Math.random() * SERVICE_SYMBOLS.length)];
 }
 
-function getRandomHintIndex(previousIndex) {
-  if (LOADING_HINTS.length === 1) {
+function getRandomHintIndex(previousIndex, hintsLength) {
+  if (hintsLength === 1) {
     return 0;
   }
 
   let nextIndex = previousIndex;
 
   while (nextIndex === previousIndex) {
-    nextIndex = Math.floor(Math.random() * LOADING_HINTS.length);
+    nextIndex = Math.floor(Math.random() * hintsLength);
   }
 
   return nextIndex;
@@ -60,17 +53,19 @@ function buildRevealFrame(hint, revealedCount, revealOrder) {
 }
 
 function LoadingHint({ className = "", variant = "block" }) {
+  const { t } = useI18n();
   const [displayText, setDisplayText] = useState("");
   const [isFinalTextVisible, setIsFinalTextVisible] = useState(false);
   const animationFrameRef = useRef(0);
   const previousHintIndexRef = useRef(-1);
+  const loadingHints = t("loading.hints");
 
   useEffect(() => {
     let isDisposed = false;
 
     const runCycle = (showHintImmediately = false) => {
-      const hintIndex = getRandomHintIndex(previousHintIndexRef.current);
-      const hint = LOADING_HINTS[hintIndex];
+      const hintIndex = getRandomHintIndex(previousHintIndexRef.current, loadingHints.length);
+      const hint = loadingHints[hintIndex];
       const revealOrder = createRevealOrder(hint.length);
       const startedAt = performance.now();
 
@@ -130,7 +125,7 @@ function LoadingHint({ className = "", variant = "block" }) {
       isDisposed = true;
       cancelAnimationFrame(animationFrameRef.current);
     };
-  }, []);
+  }, [loadingHints]);
 
   return (
     <span

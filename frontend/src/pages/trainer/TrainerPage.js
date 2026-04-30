@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import api from "../../api";
 import ResultScreen from "../../components/result/ResultScreen";
+import { useI18n } from "../../i18n";
 import {
-  DEFAULT_HELP_SECTIONS,
   DEFAULT_LANGUAGES,
   TEXT_SIZE_CONFIG,
   TEXT_TYPES,
@@ -12,10 +12,12 @@ import {
 import TrainerSettingsSelectRow from "./components/TrainerSettingsSelectRow";
 import TrainerTextPanel from "./components/TrainerTextPanel";
 import {
+  decorateWordsWithProgressMetrics,
   getAdjustedTotalTime,
   getAppendSize,
   getAutoSizeLabel,
   getCompletedWordCount,
+  getLiveProgressMetrics,
   getOptionLabel,
   getRequestedTextSize,
   getSourceWordRanges,
@@ -23,7 +25,7 @@ import {
   getTextSizeLabel,
   getTypedErrorCount,
   getWordErrorCount,
-  getWordSpeedMetrics,
+  getWordBurstMetrics,
 } from "./trainerHelpers";
 
 const isTextEntryElement = (element) => {
@@ -39,6 +41,7 @@ const isTextEntryElement = (element) => {
 };
 
 function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replayTraining }) {
+  const { locale, t } = useI18n();
   const [selectedTextType, setSelectedTextType] = useState("quote");
   const [userTexts, setUserTexts] = useState([]);
   const [selectedUserTextId, setSelectedUserTextId] = useState(null);
@@ -48,7 +51,6 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
   const [includePunctuation, setIncludePunctuation] = useState(true);
   const [includeCapitals, setIncludeCapitals] = useState(true);
   const [languages, setLanguages] = useState(DEFAULT_LANGUAGES);
-  const [helpSections, setHelpSections] = useState(DEFAULT_HELP_SECTIONS);
   const [selectedLanguage, setSelectedLanguage] = useState(
     localStorage.getItem("trainer-language") || "ru"
   );
@@ -98,6 +100,45 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
   const availableTextTypes = isLoggedIn
     ? TEXT_TYPES
     : TEXT_TYPES.filter((type) => type.value !== "user");
+  const localizedTextTypes = availableTextTypes.map((type) => ({
+    ...type,
+    label: t(`trainer.textTypes.${type.value}`),
+  }));
+  const localizedTrainingModes = TRAINING_MODES.map((mode) => ({
+    ...mode,
+    label: t(`trainer.trainingModes.${mode.value}`),
+  }));
+  const localizedTimeLimits = TIME_LIMITS.map((limit) => ({
+    ...limit,
+    label: t(`trainer.timeLimits.${limit.value}`),
+  }));
+  const helpSections = [
+    {
+      title: t("trainer.helpSections.hotkeys"),
+      items: [
+        t("trainer.helpItems.tab"),
+        t("trainer.helpItems.enter"),
+        t("trainer.helpItems.esc"),
+      ],
+    },
+    {
+      title: t("trainer.helpSections.metrics"),
+      items: [
+        t("trainer.helpItems.wpm"),
+        t("trainer.helpItems.cpm"),
+        t("trainer.helpItems.accuracy"),
+        t("trainer.helpItems.time"),
+      ],
+    },
+    {
+      title: t("trainer.helpSections.tips"),
+      items: [
+        t("trainer.helpItems.gear"),
+        t("trainer.helpItems.timeMode"),
+        t("trainer.helpItems.focus"),
+      ],
+    },
+  ];
 
   const applyTrainingText = (content, { sessionToken = null } = {}) => {
     const nextContent = (content || "").replace(/\s+/g, " ").trim();
@@ -182,7 +223,7 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
     if ((overrides.textType ?? selectedTextType) === "user" && !(overrides.userTextId ?? selectedUserTextId)) {
       setText("");
       setInput("");
-      setTextError("Сначала добавьте свой текст в профиле и выберите его.");
+      setTextError(t("trainer.addOwnTextFirst"));
       setIsTextLoading(false);
       return;
     }
@@ -212,14 +253,14 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
         setText("");
         wordsRef.current = [];
         setInput("");
-        setTextError("Не удалось загрузить текст для выбранных настроек.");
+        setTextError(t("trainer.loadTextError"));
       })
       .finally(() => {
         if (requestId === textRequestIdRef.current) {
           setIsTextLoading(false);
         }
       });
-  }, [buildTextRequestConfig, selectedTextType, selectedUserTextId]);
+  }, [buildTextRequestConfig, selectedTextType, selectedUserTextId, t]);
 
   const appendTextChunk = useCallback(() => {
     if (appendInFlightRef.current || trainingMode !== "time") {
@@ -298,33 +339,6 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
       })
       .catch(() => {
         setLanguages(DEFAULT_LANGUAGES);
-      });
-  }, []);
-
-  useEffect(() => {
-    api
-      .getHelpSections()
-      .then((data) => {
-        if (!Array.isArray(data) || !data.length) {
-          return;
-        }
-
-        const normalizedSections = data
-          .filter((section) => section?.title)
-          .map((section) => ({
-            title: section.title,
-            items: Array.isArray(section.items)
-              ? section.items.map((item) => item?.text).filter(Boolean)
-              : [],
-          }))
-          .filter((section) => section.items.length);
-
-        if (normalizedSections.length) {
-          setHelpSections(normalizedSections);
-        }
-      })
-      .catch(() => {
-        setHelpSections(DEFAULT_HELP_SECTIONS);
       });
   }, []);
 
@@ -587,7 +601,7 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
             ? (now - activeWordStart) / 1000
             : 0
         );
-      const { wpm: wordWpm, cpm: wordCpm } = getWordSpeedMetrics(
+      const { burst: wordBurst, cpm: wordCpm } = getWordBurstMetrics(
         correct,
         typedWord,
         duration
@@ -597,20 +611,25 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
         correct,
         typed: typedWord,
         duration,
-        wpm: wordWpm,
+        burst: wordBurst,
         cpm: wordCpm,
         errors: getWordErrorCount(correct, typedWord),
         had_mistake: mistakeWordIndexesRef.current.has(index),
       };
     });
+    const decoratedWords = decorateWordsWithProgressMetrics(finalWords);
 
     const rawTotalTime = sessionStartTime ? (now - sessionStartTime) / 1000 : 0;
     const totalTimeValue = trainingMode === "time"
       ? Math.min(rawTotalTime, timeLimitSeconds)
       : getAdjustedTotalTime(rawTotalTime, options.compensateCompletionDelay);
     const typedErrors = getTypedErrorCount(value, text);
+    const completedCorrectChars = finalWords.reduce((total, word, index) => {
+      const separator = index < finalWords.length - 1 ? 1 : 0;
+      return total + (word.typed === word.correct ? word.correct.length + separator : 0);
+    }, 0);
     const finalSpeed = totalTimeValue
-      ? Math.round((value.length / 5) / (totalTimeValue / 60))
+      ? Math.round((completedCorrectChars / 5) / (totalTimeValue / 60))
       : 0;
     const finalAccuracy = value.length
       ? Number((((value.length - typedErrors) / value.length) * 100).toFixed(1))
@@ -620,9 +639,9 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
     setAccuracy(finalAccuracy);
     setElapsedSeconds(rawTotalTime);
     setTotalTime(totalTimeValue);
-    setWordStats(finalWords);
+    setWordStats(decoratedWords);
     setFinished(true);
-    persistResult(finalWords, totalTimeValue, finalSpeed, finalAccuracy);
+    persistResult(decoratedWords, totalTimeValue, finalSpeed, finalAccuracy);
   }, [
     currentWordStart,
     finished,
@@ -660,10 +679,14 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
     setAccuracy(nextAccuracy);
 
     if (currentStartTime) {
-      const elapsedMinutes = (Date.now() - currentStartTime) / 1000 / 60;
-      const nextWpm = (value.length / 5) / elapsedMinutes || 0;
+      const elapsedSecondsValue = (Date.now() - currentStartTime) / 1000;
+      const { wpm: nextWpm } = getLiveProgressMetrics(
+        value,
+        text,
+        elapsedSecondsValue
+      );
 
-      setWpm(Math.round(nextWpm));
+      setWpm(nextWpm);
     } else {
       setWpm(0);
     }
@@ -996,7 +1019,7 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
         analysis={resultAnalysis}
         analysisLoading={isAnalysisLoading}
         replayMaxLines={6}
-        primaryActionLabel="Вернуться"
+        primaryActionLabel={t("trainer.back")}
         onPrimaryAction={handleRestartCurrentText}
       />
     );
@@ -1023,7 +1046,7 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
               setOpenSettingsField("");
               setIsHelpMenuOpen(false);
             }}
-            aria-label="Открыть настройки текста"
+            aria-label={t("trainer.openSettingsAria")}
             aria-expanded={isSettingsMenuOpen}
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -1035,8 +1058,8 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
           </button>
 
           <div className={`settings-popover ${isSettingsMenuOpen ? "open" : ""}`}>
-            <div className="settings-type-tabs" role="tablist" aria-label="Тип текста">
-              {availableTextTypes.map((type) => (
+            <div className="settings-type-tabs" role="tablist" aria-label={t("trainer.textTypeAria")}>
+              {localizedTextTypes.map((type) => (
                 <button
                   key={type.value}
                   className={`settings-type-tab ${selectedTextType === type.value ? "active" : ""}`}
@@ -1056,7 +1079,7 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
             {selectedTextType !== "user" ? (
               <TrainerSettingsSelectRow
                 field="language"
-                label="Язык"
+                label={t("trainer.language")}
                 valueLabel={`${languages.find((language) => language.code === selectedLanguage)?.flag_emoji || "🌐"} ${languages.find((language) => language.code === selectedLanguage)?.native_name || selectedLanguage}`}
                 options={languages.map((language) => ({
                   value: language.code,
@@ -1072,8 +1095,8 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
             {selectedTextType === "user" ? (
               <TrainerSettingsSelectRow
                 field="userText"
-                label="Текст"
-                valueLabel={userTexts.find((item) => item.id === selectedUserTextId)?.title || "Выберите текст"}
+                label={t("trainer.text")}
+                valueLabel={userTexts.find((item) => item.id === selectedUserTextId)?.title || t("trainer.chooseText")}
                 options={userTexts.map((item) => ({
                   value: item.id,
                   label: item.title,
@@ -1087,9 +1110,9 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
 
             {selectedTextType === "user" && !userTexts.length ? (
               <div className="settings-row settings-row-note">
-                <span className="settings-label">Свой текст</span>
+                <span className="settings-label">{t("trainer.ownText")}</span>
                 <div className="settings-note">
-                  Добавьте тексты в профиле, чтобы тренироваться на своих заготовках.
+                  {t("trainer.ownTextNote")}
                 </div>
               </div>
             ) : null}
@@ -1097,13 +1120,13 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
             {selectedTextType === "custom" ? (
               <>
                 <div className="settings-row">
-                  <span className="settings-label">Пунктуация</span>
+                  <span className="settings-label">{t("trainer.punctuation")}</span>
                   <button
                     className={`settings-checkbox settings-checkbox-standalone ${includePunctuation ? "checked" : ""}`}
                     type="button"
                     role="checkbox"
                     aria-checked={includePunctuation}
-                    aria-label="Пунктуация"
+                    aria-label={t("trainer.punctuation")}
                     onClick={() => setIncludePunctuation((prev) => !prev)}
                   >
                     <span className="settings-checkbox-mark" aria-hidden="true" />
@@ -1111,13 +1134,13 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
                 </div>
 
                 <div className="settings-row">
-                  <span className="settings-label">Заглавные</span>
+                  <span className="settings-label">{t("trainer.capitals")}</span>
                   <button
                     className={`settings-checkbox settings-checkbox-standalone ${includeCapitals ? "checked" : ""}`}
                     type="button"
                     role="checkbox"
                     aria-checked={includeCapitals}
-                    aria-label="Заглавные"
+                    aria-label={t("trainer.capitals")}
                     onClick={() => setIncludeCapitals((prev) => !prev)}
                   >
                     <span className="settings-checkbox-mark" aria-hidden="true" />
@@ -1128,9 +1151,9 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
 
             <TrainerSettingsSelectRow
               field="mode"
-              label="Режим"
-              valueLabel={getOptionLabel(TRAINING_MODES, trainingMode)}
-              options={TRAINING_MODES}
+              label={t("trainer.mode")}
+              valueLabel={getOptionLabel(localizedTrainingModes, trainingMode)}
+              options={localizedTrainingModes}
               selectedValue={trainingMode}
               openField={openSettingsField}
               onToggle={toggleSettingsField}
@@ -1140,9 +1163,9 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
             {trainingMode === "time" ? (
               <TrainerSettingsSelectRow
                 field="timeLimit"
-                label="Время"
-                valueLabel={getOptionLabel(TIME_LIMITS, timeLimitSeconds)}
-                options={TIME_LIMITS}
+                label={t("trainer.time")}
+                valueLabel={getOptionLabel(localizedTimeLimits, timeLimitSeconds)}
+                options={localizedTimeLimits}
                 selectedValue={timeLimitSeconds}
                 openField={openSettingsField}
                 onToggle={toggleSettingsField}
@@ -1152,7 +1175,7 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
 
             {trainingMode === "standard" && selectedTextType !== "user" ? (
               <div className="settings-row settings-row-slider">
-                <span className="settings-label">Размер</span>
+                <span className="settings-label">{t("trainer.size")}</span>
                 <div className="settings-slider-field">
                   <input
                     className="settings-slider"
@@ -1166,15 +1189,15 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
                     }}
                   />
                   <span className="settings-slider-value">
-                    {getTextSizeLabel(selectedTextType, requestedTextSize)}
+                    {getTextSizeLabel(selectedTextType, requestedTextSize, locale)}
                   </span>
                 </div>
               </div>
             ) : selectedTextType !== "user" ? (
               <div className="settings-row settings-row-note">
-                <span className="settings-label">Размер</span>
+                <span className="settings-label">{t("trainer.size")}</span>
                 <div className="settings-note">
-                  Авто: {getAutoSizeLabel(selectedTextType, requestedTextSize)}
+                  {t("trainer.auto")}: {getAutoSizeLabel(selectedTextType, requestedTextSize, locale)}
                 </div>
               </div>
             ) : null}
@@ -1190,7 +1213,7 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
               setIsSettingsMenuOpen(false);
               setOpenSettingsField("");
             }}
-            aria-label="Открыть подсказки"
+            aria-label={t("trainer.openHelpAria")}
             aria-expanded={isHelpMenuOpen}
           >
             ?
@@ -1215,7 +1238,7 @@ function TrainerPage({ currentUser, isLoggedIn, isMobileViewport = false, replay
             className={`reload-btn ${input.length > 0 ? "visible" : "hidden"}`}
             onClick={handleRestartCurrentText}
             type="button"
-            aria-label="Сбросить и начать этот текст заново"
+            aria-label={t("trainer.reloadAria")}
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path

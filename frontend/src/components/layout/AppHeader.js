@@ -1,8 +1,12 @@
 import { Link } from "react-router-dom";
+import { useI18n } from "../../i18n";
 import Auth from "../auth/Auth";
 import BrandLogo from "./BrandLogo";
+import LanguageSwitcher from "./LanguageSwitcher";
 
 function AppHeader({ currentUser, onLogin, onLogout }) {
+  const { t } = useI18n();
+
   return (
     <div className="topbar">
       <div className="brand-block">
@@ -11,7 +15,7 @@ function AppHeader({ currentUser, onLogin, onLogout }) {
 
       <div className="topbar-actions">
         <Link className="history-link" to="/leaderboard">
-          Leaderboard
+          {t("header.leaderboard")}
         </Link>
 
         <Auth
@@ -19,6 +23,8 @@ function AppHeader({ currentUser, onLogin, onLogout }) {
           onLogin={onLogin}
           onLogout={onLogout}
         />
+
+        <LanguageSwitcher />
       </div>
     </div>
   );

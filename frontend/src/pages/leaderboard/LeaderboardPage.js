@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import api from "../../api";
 import TrainingInteractiveChart from "../../components/charts/TrainingInteractiveChart";
 import LoadingHint from "../../components/feedback/LoadingHint";
+import { useI18n } from "../../i18n";
 import { formatDateTime } from "../../utils/date";
 
 function getDisplayName(item) {
@@ -32,28 +33,32 @@ function LeaderboardMetaBadge({ label, value, accent = false }) {
   );
 }
 
-function TrainingSnapshotCard({ item, index }) {
+function TrainingSnapshotCard({ item, index, locale, t }) {
+  const speedLabel = t("result.focusLabels.speed");
+  const accuracyLabel = t("comparison.metrics.accuracy");
+  const timeLabel = t("comparison.metrics.time");
   return (
     <div className="mini-training-card">
       <div className="mini-training-header">
         <span className="mini-training-rank">#{index + 1}</span>
-        <span className="mini-training-date">{formatDateTime(item.created_at)}</span>
+        <span className="mini-training-date">{formatDateTime(item.created_at, locale)}</span>
       </div>
 
       <div className="mini-training-stats">
-        <StatBadge label="Speed" value={item.speed} suffix="WPM" accent={index === 0} />
-        <StatBadge label="Accuracy" value={item.accuracy} suffix="%" />
-        <StatBadge label="Time" value={Number(item.total_time || 0).toFixed(1)} suffix="s" />
+        <StatBadge label={speedLabel} value={item.speed} suffix="WPM" accent={index === 0} />
+        <StatBadge label={accuracyLabel} value={item.accuracy} suffix="%" />
+        <StatBadge label={timeLabel} value={Number(item.total_time || 0).toFixed(1)} suffix="s" />
       </div>
 
       <div className="mini-training-meta">
-        <span>{item.language?.flag_emoji || "🌐"} {item.language?.native_name || "Не указан"}</span>
+        <span>{item.language?.flag_emoji || "🌐"} {item.language?.native_name || t("leaderboard.languageMissing")}</span>
       </div>
     </div>
   );
 }
 
 function LeaderboardProfileModal({ detail, loading, onClose }) {
+  const { locale, t } = useI18n();
   const user = detail?.user;
   const favoriteLanguage = detail?.favorite_language;
   const topTrainings = detail?.top_trainings || [];
@@ -66,7 +71,7 @@ function LeaderboardProfileModal({ detail, loading, onClose }) {
           className="leaderboard-modal-close"
           type="button"
           onClick={onClose}
-          aria-label="Закрыть карточку пользователя"
+          aria-label={t("leaderboard.closeProfileAria")}
         >
           ×
         </button>
@@ -87,7 +92,7 @@ function LeaderboardProfileModal({ detail, loading, onClose }) {
               </div>
 
               <div className="leaderboard-profile-copy">
-                <p className="profile-kicker">Профиль участника</p>
+                <p className="profile-kicker">{t("leaderboard.profileTitle")}</p>
                 <h2>{getDisplayName(user || {})}</h2>
                 <span className="leaderboard-username">@{user?.username}</span>
               </div>
@@ -95,21 +100,21 @@ function LeaderboardProfileModal({ detail, loading, onClose }) {
 
             <div className="stat-showcase">
               <div className="stat-card stat-card-accent">
-                <span className="stat-label">Trainings</span>
+                <span className="stat-label">{t("leaderboard.trainings")}</span>
                 <strong className="stat-value">{detail.total_trainings}</strong>
-                <span className="stat-suffix">total</span>
+                <span className="stat-suffix">{t("leaderboard.total")}</span>
               </div>
               <div className="stat-card">
-                <span className="stat-label">Favorite Language</span>
+                <span className="stat-label">{t("leaderboard.favoriteLanguage")}</span>
                 <strong className="stat-value stat-value-small">
                   {favoriteLanguage ? `${favoriteLanguage.flag_emoji} ${favoriteLanguage.native_name}` : "—"}
                 </strong>
                 <span className="stat-suffix">
-                  {favoriteLanguage ? `${favoriteLanguage.training_count} trainings` : "no data"}
+                  {favoriteLanguage ? t("leaderboard.trainingsCount", { count: favoriteLanguage.training_count }) : t("leaderboard.noData")}
                 </span>
               </div>
               <div className="stat-card">
-                <span className="stat-label">Best Result</span>
+                <span className="stat-label">{t("leaderboard.bestResult")}</span>
                 <strong className="stat-value">{bestTraining?.speed || "—"}</strong>
                 <span className="stat-suffix">WPM</span>
               </div>
@@ -118,27 +123,27 @@ function LeaderboardProfileModal({ detail, loading, onClose }) {
             <div className="leaderboard-modal-grid">
               <div className="leaderboard-panel">
                 <div className="panel-heading">
-                  <h3>Топ-3 тренировки</h3>
-                  <p>Лучшие результаты из истории пользователя.</p>
+                  <h3>{t("leaderboard.topTrainings")}</h3>
+                  <p>{t("leaderboard.topTrainingsBody")}</p>
                 </div>
                 <div className="mini-training-list">
                   {topTrainings.map((item, index) => (
-                    <TrainingSnapshotCard key={item.id} item={item} index={index} />
+                    <TrainingSnapshotCard key={item.id} item={item} index={index} locale={locale} t={t} />
                   ))}
                 </div>
               </div>
 
               <div className="leaderboard-panel">
                 <div className="panel-heading">
-                  <h3>Лучшая тренировка</h3>
-                  <p>Интерактивный график лучшего результата.</p>
+                  <h3>{t("leaderboard.bestTraining")}</h3>
+                  <p>{t("leaderboard.bestTrainingBody")}</p>
                 </div>
 
                 {bestTraining ? (
                   <>
                     <div className="leaderboard-best-meta">
-                      <span>{bestTraining.language?.flag_emoji || "🌐"} {bestTraining.language?.native_name || "Не указан"}</span>
-                      <span>{formatDateTime(bestTraining.created_at)}</span>
+                      <span>{bestTraining.language?.flag_emoji || "🌐"} {bestTraining.language?.native_name || t("leaderboard.languageMissing")}</span>
+                      <span>{formatDateTime(bestTraining.created_at, locale)}</span>
                     </div>
                     <TrainingInteractiveChart
                       words={bestTraining.words || []}
@@ -146,13 +151,13 @@ function LeaderboardProfileModal({ detail, loading, onClose }) {
                     />
                   </>
                 ) : (
-                  <div className="page-card">У пользователя пока нет сохранённых тренировок.</div>
+                  <div className="page-card">{t("leaderboard.noSavedTrainings")}</div>
                 )}
               </div>
             </div>
           </>
         ) : (
-          <div className="page-card">Не удалось загрузить карточку пользователя.</div>
+          <div className="page-card">{t("leaderboard.loadCardError")}</div>
         )}
       </div>
     </div>
@@ -160,6 +165,9 @@ function LeaderboardProfileModal({ detail, loading, onClose }) {
 }
 
 function LeaderboardPage() {
+  const { locale, t } = useI18n();
+  const speedLabel = t("result.focusLabels.speed");
+  const accuracyLabel = t("comparison.metrics.accuracy");
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -174,10 +182,10 @@ function LeaderboardPage() {
         setItems(data);
       })
       .catch(() => {
-        setError("Не удалось загрузить лидерборд.");
+        setError(t("leaderboard.loadLeaderboardError"));
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (!selectedUserId) {
@@ -219,9 +227,9 @@ function LeaderboardPage() {
     <>
       <div className="leaderboard-page">
         <div className="page-card">
-          <h2>Leaderboard</h2>
+          <h2>{t("leaderboard.title")}</h2>
           <p className="page-muted">
-            Топ участников по лучшему результату WPM. Нажмите на карточку, чтобы открыть профиль игрока.
+            {t("leaderboard.intro")}
           </p>
         </div>
 
@@ -250,20 +258,20 @@ function LeaderboardPage() {
                   </div>
 
                   <div className="leaderboard-stats">
-                    <LeaderboardMetaBadge label="Place" value={`#${index + 1}`} />
-                    <StatBadge label="Speed" value={item.speed} suffix="WPM" accent />
-                    <StatBadge label="Accuracy" value={item.accuracy} suffix="%" />
+                    <LeaderboardMetaBadge label={t("leaderboard.place")} value={`#${index + 1}`} />
+                    <StatBadge label={speedLabel} value={item.speed} suffix="WPM" accent />
+                    <StatBadge label={accuracyLabel} value={item.accuracy} suffix="%" />
                   </div>
 
                   <div className="leaderboard-name-row">
-                    <span className="leaderboard-date-chip">{formatDateTime(item.date)}</span>
+                    <span className="leaderboard-date-chip">{formatDateTime(item.date, locale)}</span>
                   </div>
                 </div>
               </button>
             ))
           ) : (
             <div className="page-card">
-              Пока в лидерборде нет результатов.
+              {t("leaderboard.noResults")}
             </div>
           )}
         </div>

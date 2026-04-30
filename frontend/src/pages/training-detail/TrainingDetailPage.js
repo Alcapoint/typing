@@ -2,9 +2,12 @@ import { useEffect, useState } from "react";
 import { useHistory, useParams } from "react-router-dom";
 import api from "../../api";
 import LoadingHint from "../../components/feedback/LoadingHint";
+import { useI18n } from "../../i18n";
 import ResultScreen from "../../components/result/ResultScreen";
+import { formatDateTime } from "../../utils/date";
 
 function TrainingDetailPage({ currentUser }) {
+  const { locale, t } = useI18n();
   const { id } = useParams();
   const history = useHistory();
   const [training, setTraining] = useState(null);
@@ -23,10 +26,10 @@ function TrainingDetailPage({ currentUser }) {
         setTraining(data);
       })
       .catch(() => {
-        setError("Не удалось загрузить тренировку.");
+        setError(t("trainingDetail.loadError"));
       })
       .finally(() => setLoading(false));
-  }, [currentUser, id]);
+  }, [currentUser, id, t]);
 
   const handleRepeat = () => {
     history.push("/", {
@@ -37,9 +40,9 @@ function TrainingDetailPage({ currentUser }) {
   if (!currentUser) {
     return (
       <div className="page-card">
-        <h2>Тренировка</h2>
+        <h2>{t("trainingDetail.title")}</h2>
         <p className="page-muted">
-          Детали тренировки доступны только после входа в аккаунт.
+          {t("trainingDetail.loginRequired")}
         </p>
       </div>
     );
@@ -54,12 +57,13 @@ function TrainingDetailPage({ currentUser }) {
   }
 
   if (error || !training) {
-    return <div className="page-card">{error || "Тренировка не найдена."}</div>;
+    return <div className="page-card">{error || t("trainingDetail.notFound")}</div>;
   }
 
   return (
     <ResultScreen
-      title={training.is_personal_text ? "История тренировки • Свой текст" : "История тренировки"}
+      title={training.is_personal_text ? t("trainingDetail.historyOwnText") : t("trainingDetail.history")}
+      subtitle={formatDateTime(training.created_at, locale)}
       words={training.words}
       totalTime={Number(training.total_time || 0)}
       wpm={training.speed}
@@ -68,9 +72,9 @@ function TrainingDetailPage({ currentUser }) {
       fixedScreen
       replayMaxLines={5}
       replayClassName="history-detail-replay"
-      primaryActionLabel="Повторить тренировку"
+      primaryActionLabel={t("trainingDetail.repeat")}
       onPrimaryAction={handleRepeat}
-      secondaryActionLabel="К истории"
+      secondaryActionLabel={t("trainingDetail.backToHistory")}
       onSecondaryAction={() => history.push("/history")}
     />
   );

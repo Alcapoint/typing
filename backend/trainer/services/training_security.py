@@ -60,6 +60,10 @@ def rebuild_typed_input(words):
     return ' '.join(word['typed'] for word in words)
 
 
+def is_word_perfect(correct, typed):
+    return correct == typed
+
+
 def get_typed_error_count(value, text):
     mismatch_count = 0
     for index, character in enumerate(value):
@@ -124,7 +128,7 @@ def build_verified_result_payload(training_text, words, total_time):
         raise serializers.ValidationError('Время тренировки должно быть больше нуля.')
 
     typed_errors = get_typed_error_count(typed_input, training_text)
-    speed = round((len(typed_input) / 5) / (total_time_value / 60)) if typed_input else 0
+    raw_speed = round((len(typed_input) / 5) / (total_time_value / 60)) if typed_input else 0
     cpm = round(len(typed_input) / (total_time_value / 60)) if typed_input else 0
     accuracy = round(
         (((len(typed_input) - typed_errors) / len(typed_input)) * 100),
@@ -135,7 +139,7 @@ def build_verified_result_payload(training_text, words, total_time):
         base_chars_count = max(len(word['correct']), len(word['typed']), 1)
         safe_duration = max(word['duration'], 0.5)
         minutes = safe_duration / 60
-        word['wpm'] = round((base_chars_count / 5) / minutes)
+        word['burst'] = round((base_chars_count / 5) / minutes)
         word['cpm'] = round(base_chars_count / minutes)
         word['errors'] = sum(
             1
@@ -143,6 +147,45 @@ def build_verified_result_payload(training_text, words, total_time):
             if (word['correct'][index] if index < len(word['correct']) else '')
             != (word['typed'][index] if index < len(word['typed']) else '')
         )
+    elapsed_seconds = 0
+    correct_chars_with_spaces = 0
+    raw_chars_with_spaces = 0
+    for index, word in enumerate(normalized_words):
+        separator_chars = 1 if index < len(normalized_words) - 1 else 0
+        safe_duration = max(word['duration'], 0.5)
+        word_minutes = safe_duration / 60
+        raw_word_chars_with_spaces = len(word['typed']) + separator_chars
+        correct_word_chars_with_spaces = (
+            len(word['correct']) + separator_chars
+            if is_word_perfect(word['correct'], word['typed'])
+            else 0
+        )
+        elapsed_seconds += safe_duration
+        elapsed_minutes = elapsed_seconds / 60 if elapsed_seconds > 0 else 0
+        raw_chars_with_spaces += raw_word_chars_with_spaces
+        correct_chars_with_spaces += correct_word_chars_with_spaces
+
+        word['wpm'] = (
+            round((correct_word_chars_with_spaces / 5) / word_minutes)
+            if word_minutes else 0
+        )
+        word['rwpm'] = (
+            round((raw_word_chars_with_spaces / 5) / word_minutes)
+            if word_minutes else 0
+        )
+        word['progress_wpm'] = (
+            round((correct_chars_with_spaces / 5) / elapsed_minutes)
+            if elapsed_minutes else 0
+        )
+        word['progress_rwpm'] = (
+            round((raw_chars_with_spaces / 5) / elapsed_minutes)
+            if elapsed_minutes else 0
+        )
+
+    speed = (
+        round((correct_chars_with_spaces / 5) / (total_time_value / 60))
+        if correct_chars_with_spaces else 0
+    )
 
     if speed > MAX_ALLOWED_WPM or cpm > MAX_ALLOWED_CPM:
         raise serializers.ValidationError('Результат отклонён как нереалистичный.')
@@ -150,6 +193,7 @@ def build_verified_result_payload(training_text, words, total_time):
     return {
         'total_time': total_time_value,
         'speed': speed,
+        'raw_speed': raw_speed,
         'accuracy': round(accuracy, 1),
         'words': normalized_words,
         'typed_input': typed_input,

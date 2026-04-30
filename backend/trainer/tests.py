@@ -2,6 +2,7 @@ from django.test import TestCase
 
 from trainer.models import Result
 from trainer.services.training_analysis import ensure_result_analysis
+from trainer.services.training_security import build_verified_result_payload
 
 
 class TrainingAnalysisServiceTests(TestCase):
@@ -68,13 +69,14 @@ class TrainingAnalysisServiceTests(TestCase):
 
         analysis = ensure_result_analysis(result)
 
-        self.assertEqual(analysis.analysis_version, 'v4')
+        self.assertEqual(analysis.analysis_version, 'v6')
         self.assertTrue(analysis.headline)
         self.assertGreater(analysis.overall_score, 0)
         self.assertGreaterEqual(len(analysis.recommendations), 1)
         self.assertGreaterEqual(len(analysis.metrics['difficult_words']), 1)
         self.assertGreaterEqual(len(analysis.metrics['error_patterns']), 1)
         self.assertGreaterEqual(len(analysis.metrics['scorecards']), 8)
+        self.assertEqual(len(analysis.metrics['summary_cards']), 3)
         self.assertTrue(analysis.metrics['coach_note'])
         self.assertIn('strongest_words', analysis.metrics)
         self.assertIn('hesitation_words', analysis.metrics)
@@ -190,3 +192,85 @@ class TrainingAnalysisServiceTests(TestCase):
         analysis = ensure_result_analysis(result)
 
         self.assertEqual(analysis.metrics['longest_clean_streak'], 2)
+
+    def test_recovery_counts_corrected_word(self):
+        result = Result.objects.create(
+            speed=54,
+            accuracy=97.0,
+            total_time=10.5,
+            training_text='alpha bravo charlie',
+            mode='standard',
+            text_type='quote',
+            requested_size=3,
+            words=[
+                {
+                    'correct': 'alpha',
+                    'typed': 'alpha',
+                    'duration': 1.0,
+                    'wpm': 60,
+                    'cpm': 300,
+                    'errors': 0,
+                    'had_mistake': False,
+                },
+                {
+                    'correct': 'bravo',
+                    'typed': 'bravo',
+                    'duration': 1.2,
+                    'wpm': 50,
+                    'cpm': 250,
+                    'errors': 0,
+                    'had_mistake': True,
+                },
+                {
+                    'correct': 'charlie',
+                    'typed': 'charlie',
+                    'duration': 1.3,
+                    'wpm': 48,
+                    'cpm': 240,
+                    'errors': 0,
+                    'had_mistake': False,
+                },
+            ],
+        )
+
+        analysis = ensure_result_analysis(result)
+
+        self.assertEqual(analysis.metrics['recovery_opportunities_count'], 1)
+        self.assertEqual(analysis.metrics['self_correction_ratio_percent'], 100.0)
+        self.assertEqual(analysis.metrics['stable_follow_up_ratio_percent'], 100.0)
+
+
+class TrainingSecurityServiceTests(TestCase):
+    def test_word_graph_wpm_values_are_local_not_cumulative(self):
+        payload = build_verified_result_payload(
+            'alpha bravo charlie',
+            [
+                {
+                    'correct': 'alpha',
+                    'typed': 'alpha',
+                    'duration': 1.0,
+                },
+                {
+                    'correct': 'bravo',
+                    'typed': 'braco',
+                    'duration': 1.0,
+                },
+                {
+                    'correct': 'charlie',
+                    'typed': 'charlie',
+                    'duration': 1.0,
+                },
+            ],
+            3.0,
+        )
+
+        self.assertEqual([word['wpm'] for word in payload['words']], [72, 0, 84])
+        self.assertEqual([word['rwpm'] for word in payload['words']], [72, 72, 84])
+        self.assertEqual(
+            [word['progress_wpm'] for word in payload['words']],
+            [72, 36, 52],
+        )
+        self.assertEqual(
+            [word['progress_rwpm'] for word in payload['words']],
+            [72, 72, 76],
+        )

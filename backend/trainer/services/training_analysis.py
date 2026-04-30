@@ -2,7 +2,7 @@ from statistics import median
 
 from ..models import TrainingAnalysis
 
-ANALYSIS_VERSION = 'v4'
+ANALYSIS_VERSION = 'v7'
 REFERENCE_WPM_BY_MODE = {
     'standard': 80,
     'time': 75,
@@ -23,6 +23,9 @@ METRIC_LABELS = {
     'recovery': 'восстановление после ошибки',
     'hard_words': 'сложные слова',
     'completion': 'завершение объёма',
+    'execution': 'техника набора',
+    'pace': 'темп и ритм',
+    'stability': 'устойчивость',
 }
 
 
@@ -121,7 +124,9 @@ def build_annotated_words(words):
         correct = str(raw_word.get('correct', ''))
         typed = str(raw_word.get('typed', ''))
         duration = float(raw_word.get('duration', 0) or 0)
-        wpm = int(raw_word.get('wpm', 0) or 0)
+        burst = int(raw_word.get('burst', raw_word.get('wpm', 0)) or 0)
+        display_wpm = int(raw_word.get('wpm', burst) or 0)
+        raw_wpm = int(raw_word.get('rwpm', display_wpm) or 0)
         cpm = int(raw_word.get('cpm', 0) or 0)
         errors = int(raw_word.get('errors', 0) or 0)
         had_mistake = bool(raw_word.get('had_mistake', False) or errors > 0)
@@ -150,7 +155,10 @@ def build_annotated_words(words):
             'correct': correct,
             'typed': typed,
             'duration': duration,
-            'wpm': wpm,
+            'wpm': burst,
+            'burst': burst,
+            'display_wpm': display_wpm,
+            'rwpm': raw_wpm,
             'cpm': cpm,
             'errors': errors,
             'had_mistake': had_mistake,
@@ -189,10 +197,11 @@ def build_segments(words):
             chunk,
             key=lambda word: (word['errors'], word['duration'], -word['wpm']),
         )
-        clean_words = [word for word in chunk if not word['has_error']]
+        clean_words = [word for word in chunk if not word['breaks_clean_streak']]
 
         segments.append({
             'label': label,
+            'word_indexes': [word['index'] for word in chunk],
             'words_count': len(chunk),
             'avg_wpm': round(average([word['wpm'] for word in chunk])),
             'avg_accuracy': safe_round(average([word['accuracy'] for word in chunk])),
@@ -225,6 +234,7 @@ def build_error_patterns(words):
             bucket['count'] += count
             if len(bucket['examples']) < 3:
                 bucket['examples'].append({
+                    'index': word['index'],
                     'correct': word['correct'],
                     'typed': word['typed'],
                 })
@@ -248,18 +258,20 @@ def build_difficult_words(words, avg_wpm, avg_duration):
         duration_penalty = max(word['duration'] - avg_duration, 0)
         severity = (
             (word['errors'] * 26)
+            + (14 if word['had_mistake'] else 0)
             + (slow_penalty * 0.55)
             + (duration_penalty * 16)
         )
 
         if (
-            not word['has_error']
+            not word['breaks_clean_streak']
             and word['wpm'] >= avg_wpm * 0.85
             and word['duration'] <= avg_duration * 1.15
         ):
             continue
 
         difficult_words.append({
+            'index': word['index'],
             'correct': word['correct'],
             'typed': word['typed'],
             'errors': word['errors'],
@@ -278,6 +290,7 @@ def build_difficult_words(words, avg_wpm, avg_duration):
 def build_strongest_words(words, avg_wpm):
     strong_words = [
         {
+            'index': word['index'],
             'correct': word['correct'],
             'typed': word['typed'],
             'errors': word['errors'],
@@ -286,7 +299,7 @@ def build_strongest_words(words, avg_wpm):
             'accuracy': safe_round(word['accuracy'], 1),
         }
         for word in words
-        if not word['has_error'] and word['wpm'] >= avg_wpm
+        if not word['breaks_clean_streak'] and word['wpm'] >= avg_wpm
     ]
     return sorted(
         strong_words,
@@ -297,11 +310,12 @@ def build_strongest_words(words, avg_wpm):
 def build_hesitation_words(words, avg_wpm, avg_duration):
     hesitant = []
     for word in words:
-        if word['has_error']:
+        if word['breaks_clean_streak']:
             continue
         if word['duration'] <= avg_duration * 1.3 and word['wpm'] >= avg_wpm * 0.85:
             continue
         hesitant.append({
+            'index': word['index'],
             'correct': word['correct'],
             'typed': word['typed'],
             'duration': safe_round(word['duration'], 2),
@@ -318,9 +332,10 @@ def build_hesitation_words(words, avg_wpm, avg_duration):
 def build_rushed_words(words, avg_wpm):
     rushed = []
     for word in words:
-        if not word['has_error'] or word['wpm'] < avg_wpm * 1.03:
+        if not word['had_mistake'] or word['wpm'] < avg_wpm * 1.03:
             continue
         rushed.append({
+            'index': word['index'],
             'correct': word['correct'],
             'typed': word['typed'],
             'errors': word['errors'],
@@ -340,7 +355,7 @@ def build_error_bursts(words):
     current = []
 
     for word in words:
-        if word['has_error']:
+        if word['breaks_clean_streak']:
             current.append(word)
             continue
 
@@ -374,10 +389,11 @@ def build_length_breakdown(words):
         bucket_words = [word for word in words if matcher(word)]
         if not bucket_words:
             continue
-        clean_words = [word for word in bucket_words if not word['has_error']]
+        clean_words = [word for word in bucket_words if not word['breaks_clean_streak']]
         breakdown.append({
             'id': bucket_id,
             'label': label,
+            'word_indexes': [word['index'] for word in bucket_words],
             'words_count': len(bucket_words),
             'avg_wpm': round(average([word['wpm'] for word in bucket_words])),
             'avg_accuracy': safe_round(average([word['accuracy'] for word in bucket_words])),
@@ -430,34 +446,75 @@ def build_streak_stats(words):
 
 def build_recovery_stats(words, avg_wpm):
     opportunities = []
-    recovered_count = 0
+    recovered_score_total = 0
+    corrected_count = 0
+    stable_follow_up_count = 0
     speed_drop_total = 0
 
-    for index, word in enumerate(words[:-1]):
-        if not word['has_error']:
+    for index, word in enumerate(words):
+        if not word['had_mistake']:
             continue
 
-        next_word = words[index + 1]
-        recovered = (
-            not next_word['has_error']
+        next_word = words[index + 1] if index + 1 < len(words) else None
+        corrected_inside_word = word['errors'] == 0
+        if corrected_inside_word:
+            corrected_count += 1
+
+        local_recovery_score = (
+            1
+            if corrected_inside_word
+            else max(0, min(1, (word['accuracy'] - 72) / 28))
+        )
+
+        next_word_stable = bool(
+            next_word
+            and not next_word['breaks_clean_streak']
             and next_word['accuracy'] >= 95
             and next_word['wpm'] >= avg_wpm * 0.82
         )
-        if recovered:
-            recovered_count += 1
+        if next_word_stable:
+            stable_follow_up_count += 1
 
-        speed_drop_total += max(word['wpm'] - next_word['wpm'], 0)
+        if next_word:
+            speed_drop = max(word['wpm'] - next_word['wpm'], 0)
+            speed_drop_total += speed_drop
+            if next_word_stable:
+                follow_up_score = 1
+            elif not next_word['breaks_clean_streak'] and next_word['accuracy'] >= 92:
+                follow_up_score = 0.55
+            else:
+                follow_up_score = 0
+        else:
+            speed_drop = 0
+            follow_up_score = 1 if corrected_inside_word else 0
+
+        recovery_score = (local_recovery_score * 0.62) + (follow_up_score * 0.38)
+        recovered_score_total += recovery_score
         opportunities.append({
+            'word_index': word['index'],
+            'next_word_index': next_word['index'] if next_word else None,
             'after': word['correct'],
-            'next': next_word['correct'],
-            'recovered': recovered,
-            'next_wpm': next_word['wpm'],
-            'next_accuracy': safe_round(next_word['accuracy'], 1),
+            'next': next_word['correct'] if next_word else '',
+            'recovered': recovery_score >= 0.8,
+            'recovery_score_percent': safe_round(recovery_score * 100, 1),
+            'corrected_inside_word': corrected_inside_word,
+            'next_stable': next_word_stable,
+            'next_wpm': next_word['wpm'] if next_word else 0,
+            'next_accuracy': safe_round(next_word['accuracy'], 1) if next_word else 0,
+            'speed_drop': safe_round(speed_drop, 1),
         })
 
     opportunities_count = len(opportunities)
     recovery_ratio = (
-        recovered_count / opportunities_count
+        recovered_score_total / opportunities_count
+        if opportunities_count else 1
+    )
+    self_correction_ratio = (
+        corrected_count / opportunities_count
+        if opportunities_count else 1
+    )
+    stable_follow_up_ratio = (
+        stable_follow_up_count / opportunities_count
         if opportunities_count else 1
     )
     average_speed_drop = (
@@ -477,13 +534,16 @@ def build_recovery_stats(words, avg_wpm):
     return {
         'opportunities_count': opportunities_count,
         'recovery_ratio': recovery_ratio,
+        'self_correction_ratio': self_correction_ratio,
+        'stable_follow_up_ratio': stable_follow_up_ratio,
         'average_speed_drop': safe_round(average_speed_drop),
+        'timeline': opportunities,
         'weak_examples': weak_examples,
         'good_examples': good_examples,
     }
 
 
-def append_item(collection, title, description):
+def append_item(collection, title, description, *, word_indexes=None):
     if any(item['title'] == title for item in collection):
         return
     if len(collection) >= MAX_INSIGHT_ITEMS:
@@ -491,6 +551,7 @@ def append_item(collection, title, description):
     collection.append({
         'title': title,
         'description': description,
+        'word_indexes': word_indexes or [],
     })
 
 
@@ -507,9 +568,164 @@ def build_scorecard(card_id, label, score, headline, reasons):
 
 def build_focus_area(scorecards):
     if not scorecards:
-        return 'accuracy'
+        return 'execution'
     weakest = min(scorecards, key=lambda card: card['score'])
     return weakest['id']
+
+
+def build_summary_cards(context):
+    execution_score = clamp(round(
+        (context['accuracy_score'] * 0.34)
+        + (context['clean_run_score'] * 0.26)
+        + (context['hard_words_score'] * 0.18)
+        + (context['recovery_score'] * 0.22)
+    ))
+    pace_score = clamp(round(
+        (context['speed_score'] * 0.34)
+        + (context['speed_control_score'] * 0.25)
+        + (context['rhythm_score'] * 0.24)
+        + (context['completion_score'] * 0.17)
+    ))
+    stability_score = clamp(round(
+        (context['endurance_score'] * 0.34)
+        + (context['recovery_score'] * 0.27)
+        + (context['clean_run_score'] * 0.21)
+        + (context['completion_score'] * 0.18)
+    ))
+
+    recovery_stats = context['recovery_stats']
+    summary_cards = [
+        build_scorecard(
+            'execution',
+            'Техника набора',
+            execution_score,
+            'Объединяет символьную точность, чистые серии, поведение на сложных словах и качество исправлений.',
+            [
+                f"Чисто пройдено {context['clean_words_ratio_percent']}% слов.",
+                f"На сложных словах удержано {safe_round(context['complex_accuracy'])}% точности.",
+                (
+                    f"Внутри слова исправлено {percent(recovery_stats['self_correction_ratio'])}% допущенных сбоев."
+                    if recovery_stats['opportunities_count'] else None
+                ),
+            ],
+        ),
+        build_scorecard(
+            'pace',
+            'Темп и ритм',
+            pace_score,
+            'Объединяет итоговую скорость, ровность ритма, контроль ускорения и полноту прохождения текста.',
+            [
+                f"Итоговый темп — {context['result_speed']} WPM, медианный темп по словам — {safe_round(context['median_word_wpm'])} WPM.",
+                f"Средний скачок между соседними словами — {safe_round(context['average_jump'])} WPM.",
+                f"На быстрых словах удержано {safe_round(context['fast_words_accuracy'])}% точности.",
+            ],
+        ),
+        build_scorecard(
+            'stability',
+            'Устойчивость',
+            stability_score,
+            'Показывает, как хорошо результат держится по дистанции и насколько быстро возвращается контроль после сбоев.',
+            [
+                f"Максимальная чистая серия — {context['streaks']['longest_clean_streak']} слов.",
+                f"Восстановление после сбоя — {percent(recovery_stats['recovery_ratio'])}%, стабильное следующее слово — {percent(recovery_stats['stable_follow_up_ratio'])}%.",
+                f"К финишу темп изменился на {safe_round(context['pace_drop_percent'])}%.",
+            ],
+        ),
+    ]
+
+    return summary_cards, execution_score, pace_score, stability_score
+
+
+def build_focus_board(
+    difficult_words,
+    rushed_words,
+    hesitation_words,
+    strongest_words,
+    error_patterns,
+):
+    problem_items = []
+    for item in difficult_words[:4]:
+        problem_items.append({
+            'kind': 'problem',
+            'label': 'Срыв',
+            'title': item['correct'],
+            'meta': f"{item['wpm']} WPM · {safe_round(item['accuracy'])}% · {item['errors']} ош.",
+            'note': 'Здесь результат просел сильнее всего по совокупности темпа, точности и времени.',
+            'priority': item['severity'],
+            'word_indexes': [item['index']],
+        })
+
+    for item in rushed_words[:3]:
+        problem_items.append({
+            'kind': 'rushed',
+            'label': 'Риск',
+            'title': item['correct'],
+            'meta': f"{item['wpm']} WPM · {safe_round(item['accuracy'])}% · {item['errors']} ош.",
+            'note': 'Слово набиралось слишком агрессивно: ускорение опередило контроль.',
+            'priority': item['wpm'] + (item['errors'] * 10),
+            'word_indexes': [item['index']],
+        })
+
+    for pattern in error_patterns[:3]:
+        examples = pattern.get('examples') or []
+        problem_items.append({
+            'kind': 'pattern',
+            'label': 'Паттерн',
+            'title': pattern['label'],
+            'meta': f"{pattern['count']} повторения",
+            'note': (
+                f"Чаще всего паттерн всплывал в словах "
+                f"{', '.join(example['correct'] for example in examples[:2])}."
+            ),
+            'priority': pattern['count'] * 10,
+            'word_indexes': [example['index'] for example in examples if example.get('index') is not None],
+        })
+
+    opportunity_items = []
+    for item in hesitation_words[:3]:
+        opportunity_items.append({
+            'kind': 'careful',
+            'label': 'Запас',
+            'title': item['correct'],
+            'meta': f"{item['wpm']} WPM · {safe_round(item['accuracy'])}%",
+            'note': 'Здесь контроль уже высокий, а темп можно повышать смелее.',
+            'priority': item['duration'] * 10,
+            'word_indexes': [item['index']],
+        })
+
+    for item in strongest_words[:3]:
+        opportunity_items.append({
+            'kind': 'strong',
+            'label': 'Опора',
+            'title': item['correct'],
+            'meta': f"{item['wpm']} WPM · {safe_round(item['accuracy'])}%",
+            'note': 'Слово показывает ваш рабочий уровень, на который можно равняться.',
+            'priority': item['wpm'],
+            'word_indexes': [item['index']],
+        })
+
+    focus_items = []
+    seen = set()
+
+    for item in sorted(problem_items, key=lambda entry: entry['priority'], reverse=True):
+        key = (item['kind'], item['title'])
+        if key in seen:
+            continue
+        seen.add(key)
+        focus_items.append(item)
+        if len(focus_items) >= 4:
+            break
+
+    for item in sorted(opportunity_items, key=lambda entry: entry['priority'], reverse=True):
+        key = (item['kind'], item['title'])
+        if key in seen:
+            continue
+        seen.add(key)
+        focus_items.append(item)
+        if len(focus_items) >= 8:
+            break
+
+    return focus_items
 
 
 def build_headline(overall_score, focus_area):
@@ -590,18 +806,21 @@ def build_insights(result, context):
             strengths,
             'Высокая символьная точность',
             f"Основная часть текста набрана без существенных отклонений. Стабильные примеры: {join_word_examples(strongest_words, 2) or 'ключевые слова текущего прохода'}.",
+            word_indexes=[item['index'] for item in strongest_words[:2]],
         )
     if clean_run_score >= 78:
         append_item(
             strengths,
             'Стабильные безошибочные серии',
             'Зафиксированы продолжительные участки без ошибок и резких просадок качества.',
+            word_indexes=[item['index'] for item in strongest_words[:2]],
         )
     if speed_control_score >= 75:
         append_item(
             strengths,
             'Контроль ускорения',
             'На повышенном темпе точность сохраняется в рабочем диапазоне.',
+            word_indexes=[item['index'] for item in strongest_words[:2]],
         )
 
     if accuracy_score < 90:
@@ -610,11 +829,13 @@ def build_insights(result, context):
             pain_points,
             'Снижение точности',
             f"Ошибки в словах типа {quote_word(lead_word)} дали наибольший вклад в снижение итоговой оценки.",
+            word_indexes=[item['index'] for item in difficult_words[:2]],
         )
         append_item(
             recommendations,
             'Снижение рабочего темпа',
             'Рекомендуется уменьшить рабочий темп на 5-10% и повторить проблемные слова до стабильного результата.',
+            word_indexes=[item['index'] for item in difficult_words[:2]],
         )
 
     if rhythm_score < 68:
@@ -622,11 +843,13 @@ def build_insights(result, context):
             pain_points,
             'Неравномерный ритм',
             'Темп изменяется слишком резко от слова к слову, что снижает устойчивость набора.',
+            word_indexes=[item['index'] for item in rushed_words[:1]] or [item['index'] for item in difficult_words[:1]],
         )
         append_item(
             recommendations,
             'Выравнивание ритма',
             'Рекомендуются короткие серии по 20-30 слов с фиксированным темпом без попытки ускорения.',
+            word_indexes=[item['index'] for item in hesitation_words[:2]] or [item['index'] for item in strongest_words[:1]],
         )
 
     if endurance_score < 68 and pace_drop_percent > 8:
@@ -634,11 +857,13 @@ def build_insights(result, context):
             pain_points,
             'Снижение темпа к финишу',
             f"На финальном участке зафиксировано снижение темпа примерно на {safe_round(pace_drop_percent)}%.",
+            word_indexes=[item['index'] for item in difficult_words[-2:]],
         )
         append_item(
             recommendations,
             'Контроль финального отрезка',
             'Рекомендуются тексты средней длины с отдельным контролем последней трети дистанции.',
+            word_indexes=[item['index'] for item in difficult_words[-2:]],
         )
 
     if recovery_score < 65 and recovery_stats['opportunities_count']:
@@ -653,11 +878,21 @@ def build_insights(result, context):
             pain_points,
             'Замедленное восстановление после ошибки',
             description,
+            word_indexes=[
+                weak_example['word_index']
+                for weak_example in recovery_stats['weak_examples'][:2]
+                if weak_example.get('word_index') is not None
+            ],
         )
         append_item(
             recommendations,
             'Восстановление после ошибки',
             'После ошибки рекомендуется сначала вернуть точность на следующем слове и только затем восстанавливать темп.',
+            word_indexes=[
+                weak_example['word_index']
+                for weak_example in recovery_stats['weak_examples'][:2]
+                if weak_example.get('word_index') is not None
+            ],
         )
 
     if hard_words_score < 70 and difficult_words:
@@ -665,11 +900,13 @@ def build_insights(result, context):
             pain_points,
             'Сложные слова',
             f"На словах {join_word_examples(difficult_words, 3)} одновременно увеличиваются время набора и число ошибок.",
+            word_indexes=[item['index'] for item in difficult_words[:3]],
         )
         append_item(
             recommendations,
             'Отработка сложных слов',
             'Рекомендуется сформировать отдельный набор из 5-10 проблемных слов и отработать его вне основной тренировки.',
+            word_indexes=[item['index'] for item in difficult_words[:3]],
         )
 
     if rushed_words:
@@ -677,6 +914,7 @@ def build_insights(result, context):
             pain_points,
             'Потеря контроля при ускорении',
             f"Ошибки чаще возникают в фазе ускорения, в том числе на {join_word_examples(rushed_words, 2)}.",
+            word_indexes=[item['index'] for item in rushed_words[:2]],
         )
 
     if hesitation_words:
@@ -684,6 +922,7 @@ def build_insights(result, context):
             recommendations,
             'Ускорение стабильных слов',
             f"Для слов {join_word_examples(hesitation_words, 2)} допустимо повышение темпа без заметного риска для точности.",
+            word_indexes=[item['index'] for item in hesitation_words[:2]],
         )
 
     if error_patterns and error_patterns[0]['count'] >= 2:
@@ -692,6 +931,7 @@ def build_insights(result, context):
             recommendations,
             'Коррекция повторяющегося паттерна',
             f"Рекомендуется отдельное упражнение на сочетание {quote_word(pattern['label'])}.",
+            word_indexes=[example['index'] for example in pattern.get('examples', [])[:2] if example.get('index') is not None],
         )
 
     if result.mode == 'time' and completion_score < 75:
@@ -699,6 +939,7 @@ def build_insights(result, context):
             recommendations,
             'Старт в режиме на время',
             'Рекомендуются короткие тайм-сеты с акцентом на выход на рабочий темп в первые секунды.',
+            word_indexes=[item['index'] for item in strongest_words[:1]],
         )
 
     if not strengths:
@@ -706,18 +947,21 @@ def build_insights(result, context):
             strengths,
             'Определены устойчивые элементы',
             'Анализ фиксирует участки, на которые можно опираться при дальнейшем росте темпа.',
+            word_indexes=[item['index'] for item in strongest_words[:2]],
         )
     if not pain_points:
         append_item(
             pain_points,
             'Критические отклонения не зафиксированы',
             'Основные метрики находятся в рабочем диапазоне. Дальнейшее улучшение связано с точечной настройкой.',
+            word_indexes=[item['index'] for item in strongest_words[:1]],
         )
     if not recommendations:
         append_item(
             recommendations,
             'Повторение текущего формата',
             'Рекомендуется закрепить текущий режим ещё в нескольких проходах.',
+            word_indexes=[item['index'] for item in strongest_words[:1]],
         )
 
     return strengths, pain_points, recommendations
@@ -735,13 +979,14 @@ def build_result_analysis_payload(result):
     word_durations = [word['duration'] for word in typed_words]
     total_char_errors = sum(word['errors'] for word in typed_words)
     total_word_errors = sum(1 for word in typed_words if word['has_error'])
+    total_disrupted_words = sum(1 for word in typed_words if word['breaks_clean_streak'])
     avg_word_wpm = average(word_wpms)
     median_word_wpm = median(word_wpms) if word_wpms else 0
     avg_word_duration = average(word_durations)
     median_word_duration = median(word_durations) if word_durations else 0
     average_word_accuracy = average(word_accuracies)
-    error_free_ratio = (
-        sum(1 for word in typed_words if not word['has_error']) / typed_words_count
+    clean_words_ratio = (
+        sum(1 for word in typed_words if not word['breaks_clean_streak']) / typed_words_count
         if typed_words_count else 0
     )
     word_error_ratio = (
@@ -795,7 +1040,7 @@ def build_result_analysis_payload(result):
     speed_score = clamp(round((result.speed / reference_wpm) * 100))
     accuracy_score = clamp(round(result.accuracy))
     clean_run_score = clamp(round(
-        (error_free_ratio * 70)
+        (clean_words_ratio * 70)
         + ((streaks['longest_clean_streak'] / max(typed_words_count, 1)) * 30)
     ))
     rhythm_score = clamp(round(
@@ -810,9 +1055,10 @@ def build_result_analysis_payload(result):
 
     recovery_ratio = recovery_stats['recovery_ratio']
     recovery_score = clamp(round(
-        (recovery_ratio * 100)
-        - (recovery_stats['average_speed_drop'] * 0.7)
-        + (12 if recovery_stats['opportunities_count'] else 0)
+        (recovery_ratio * 58)
+        + (recovery_stats['self_correction_ratio'] * 24)
+        + (recovery_stats['stable_follow_up_ratio'] * 18)
+        - (recovery_stats['average_speed_drop'] * 0.35)
     ))
     if not recovery_stats['opportunities_count']:
         recovery_score = 100 if accuracy_score >= 96 else 78
@@ -821,7 +1067,7 @@ def build_result_analysis_payload(result):
     if complex_words:
         complex_accuracy = average([word['accuracy'] for word in complex_words])
         complex_error_free_ratio = average(
-            [0 if word['has_error'] else 100 for word in complex_words]
+            [0 if word['breaks_clean_streak'] else 100 for word in complex_words]
         )
         hard_words_score = clamp(round(
             (complex_accuracy * 0.65)
@@ -830,8 +1076,8 @@ def build_result_analysis_payload(result):
         ))
     else:
         complex_accuracy = accuracy_score
-        complex_error_free_ratio = error_free_ratio * 100
-        hard_words_score = clamp(round((accuracy_score * 0.7) + (error_free_ratio * 30)))
+        complex_error_free_ratio = clean_words_ratio * 100
+        hard_words_score = clamp(round((accuracy_score * 0.7) + (clean_words_ratio * 30)))
 
     sorted_wpms = sorted(word_wpms)
     fast_threshold = (
@@ -840,7 +1086,7 @@ def build_result_analysis_payload(result):
     )
     fast_words = [word for word in typed_words if word['wpm'] >= fast_threshold] if fast_threshold else []
     fast_words_accuracy = average([word['accuracy'] for word in fast_words]) if fast_words else accuracy_score
-    fast_clean_ratio = average([0 if word['has_error'] else 100 for word in fast_words]) if fast_words else error_free_ratio * 100
+    fast_clean_ratio = average([0 if word['breaks_clean_streak'] else 100 for word in fast_words]) if fast_words else clean_words_ratio * 100
     rushed_ratio = (
         len(rushed_words) / len(fast_words)
         if fast_words else 0
@@ -854,6 +1100,42 @@ def build_result_analysis_payload(result):
 
     completion_score = clamp(round(completion_ratio * 100))
     stability_score = clamp(round((rhythm_score * 0.55) + (endurance_score * 0.45)))
+
+    context = {
+        'segments': segments,
+        'difficult_words': difficult_words,
+        'strongest_words': strongest_words,
+        'hesitation_words': hesitation_words,
+        'rushed_words': rushed_words,
+        'error_patterns': error_patterns,
+        'pace_drop_percent': pace_drop_percent,
+        'recovery_stats': recovery_stats,
+        'accuracy_score': accuracy_score,
+        'clean_run_score': clean_run_score,
+        'rhythm_score': rhythm_score,
+        'endurance_score': endurance_score,
+        'recovery_score': recovery_score,
+        'hard_words_score': hard_words_score,
+        'speed_control_score': speed_control_score,
+        'speed_score': speed_score,
+        'completion_score': completion_score,
+        'clean_words_ratio_percent': percent(clean_words_ratio),
+        'complex_accuracy': complex_accuracy,
+        'result_speed': result.speed,
+        'median_word_wpm': median_word_wpm,
+        'average_jump': average_jump,
+        'fast_words_accuracy': fast_words_accuracy,
+        'streaks': streaks,
+    }
+
+    summary_cards, execution_score, pace_score, compact_stability_score = build_summary_cards(context)
+    focus_board = build_focus_board(
+        difficult_words,
+        rushed_words,
+        hesitation_words,
+        strongest_words,
+        error_patterns,
+    )
 
     scorecards = [
         build_scorecard(
@@ -879,7 +1161,7 @@ def build_result_analysis_payload(result):
             clean_run_score,
             'Доля безошибочных слов и длина стабильных серий.',
             [
-                f"Без ошибок пройдено {percent(error_free_ratio)}% слов.",
+                f"Без сбоев пройдено {percent(clean_words_ratio)}% слов.",
                 f"Максимальная безошибочная серия — {streaks['longest_clean_streak']} слов.",
                 (
                     f"Наибольшее число сбоев связано со словами {join_word_examples(difficult_words, 2)}."
@@ -953,18 +1235,19 @@ def build_result_analysis_payload(result):
             'Скорость возврата к точному набору после ошибки.',
             [
                 (
-                    f"После ошибочного слова восстановление зафиксировано в {percent(recovery_ratio)}% случаев."
+                    f"После сбоя восстановление зафиксировано в {percent(recovery_ratio)}% случаев."
                     if recovery_stats['opportunities_count']
                     else 'Недостаточно эпизодов для устойчивой оценки показателя.'
                 ),
                 (
-                    f"Среднее снижение скорости после ошибки — {recovery_stats['average_speed_drop']} WPM."
+                    f"Внутри слова исправлено {percent(recovery_stats['self_correction_ratio'])}% сбоев."
                     if recovery_stats['opportunities_count']
                     else None
                 ),
                 (
-                    f"Показательный эпизод: после {quote_word(recovery_stats['weak_examples'][0]['after'])} следовало слово {quote_word(recovery_stats['weak_examples'][0]['next'])} с пониженным качеством."
-                    if recovery_stats['weak_examples'] else None
+                    f"Среднее снижение скорости после сбоя — {recovery_stats['average_speed_drop']} WPM."
+                    if recovery_stats['opportunities_count']
+                    else None
                 ),
             ],
         ),
@@ -1003,38 +1286,12 @@ def build_result_analysis_payload(result):
     ]
 
     overall_score = clamp(round(
-        (accuracy_score * 0.18)
-        + (clean_run_score * 0.12)
-        + (speed_score * 0.12)
-        + (speed_control_score * 0.10)
-        + (rhythm_score * 0.12)
-        + (endurance_score * 0.10)
-        + (recovery_score * 0.08)
-        + (hard_words_score * 0.10)
-        + (completion_score * 0.08)
+        (execution_score * 0.40)
+        + (pace_score * 0.33)
+        + (compact_stability_score * 0.27)
     ))
     band, band_label = describe_band(overall_score)
-    focus_area = build_focus_area(scorecards)
-
-    context = {
-        'segments': segments,
-        'difficult_words': difficult_words,
-        'strongest_words': strongest_words,
-        'hesitation_words': hesitation_words,
-        'rushed_words': rushed_words,
-        'error_patterns': error_patterns,
-        'pace_drop_percent': pace_drop_percent,
-        'recovery_stats': recovery_stats,
-        'accuracy_score': accuracy_score,
-        'clean_run_score': clean_run_score,
-        'rhythm_score': rhythm_score,
-        'endurance_score': endurance_score,
-        'recovery_score': recovery_score,
-        'hard_words_score': hard_words_score,
-        'speed_control_score': speed_control_score,
-        'speed_score': speed_score,
-        'completion_score': completion_score,
-    }
+    focus_area = build_focus_area(summary_cards)
     strengths, pain_points, recommendations = build_insights(result, context)
 
     return {
@@ -1055,8 +1312,9 @@ def build_result_analysis_payload(result):
             'typed_chars_count': len(typed_input),
             'total_char_errors': total_char_errors,
             'total_word_errors': total_word_errors,
+            'total_disrupted_words': total_disrupted_words,
             'completion_ratio_percent': safe_round(completion_score, 1),
-            'error_free_ratio_percent': percent(error_free_ratio),
+            'error_free_ratio_percent': percent(clean_words_ratio),
             'word_error_ratio_percent': percent(word_error_ratio),
             'average_word_wpm': safe_round(avg_word_wpm),
             'median_word_wpm': safe_round(median_word_wpm),
@@ -1066,7 +1324,9 @@ def build_result_analysis_payload(result):
             'stability_cv': safe_round(stability_cv, 3),
             'average_jump_wpm': safe_round(average_jump),
             'pace_drop_percent': safe_round(pace_drop_percent),
+            'summary_cards': summary_cards,
             'scorecards': scorecards,
+            'focus_board': focus_board,
             'segments': segments,
             'difficult_words': difficult_words,
             'strongest_words': strongest_words,
@@ -1079,6 +1339,8 @@ def build_result_analysis_payload(result):
             'longest_clean_streak': streaks['longest_clean_streak'],
             'longest_error_streak': streaks['longest_error_streak'],
             'recovery_ratio_percent': percent(recovery_ratio),
+            'self_correction_ratio_percent': percent(recovery_stats['self_correction_ratio']),
+            'stable_follow_up_ratio_percent': percent(recovery_stats['stable_follow_up_ratio']),
             'recovery_opportunities_count': recovery_stats['opportunities_count'],
             'recovery_examples': recovery_stats,
         },
@@ -1086,6 +1348,40 @@ def build_result_analysis_payload(result):
         'pain_points': pain_points,
         'recommendations': recommendations,
     }
+
+
+def _items_have_word_indexes(items):
+    normalized_items = items if isinstance(items, list) else []
+    if not normalized_items:
+        return True
+    return any(isinstance(item, dict) and item.get('word_indexes') for item in normalized_items)
+
+
+def analysis_supports_graph_overlays(analysis):
+    if analysis is None:
+        return False
+
+    metrics = analysis.metrics if isinstance(analysis.metrics, dict) else {}
+    focus_board = metrics.get('focus_board') or []
+    segments = metrics.get('segments') or []
+    word_length_breakdown = metrics.get('word_length_breakdown') or []
+    recovery_examples = metrics.get('recovery_examples') or {}
+    recovery_timeline = recovery_examples.get('timeline') or []
+    recovery_opportunities = (
+        recovery_examples.get('opportunities_count')
+        or metrics.get('recovery_opportunities_count')
+        or 0
+    )
+
+    return all((
+        _items_have_word_indexes(focus_board),
+        _items_have_word_indexes(analysis.strengths),
+        _items_have_word_indexes(analysis.pain_points),
+        _items_have_word_indexes(analysis.recommendations),
+        _items_have_word_indexes(segments),
+        _items_have_word_indexes(word_length_breakdown),
+        not recovery_opportunities or bool(recovery_timeline),
+    ))
 
 
 def ensure_result_analysis(result, *, refresh=False):
@@ -1098,6 +1394,7 @@ def ensure_result_analysis(result, *, refresh=False):
         analysis is not None
         and not refresh
         and analysis.analysis_version == ANALYSIS_VERSION
+        and analysis_supports_graph_overlays(analysis)
     ):
         return analysis
 

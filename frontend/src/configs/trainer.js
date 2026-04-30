@@ -29,28 +29,40 @@ export const TEXT_SIZE_CONFIG = {
     max: 200,
     step: 25,
     defaultValue: 25,
-    forms: ["слово", "слова", "слов"],
+    forms: {
+      ru: ["слово", "слова", "слов"],
+      en: ["word", "words", "words"],
+    },
   },
   custom: {
     min: 20,
     max: 140,
     step: 10,
     defaultValue: 40,
-    forms: ["слово", "слова", "слов"],
+    forms: {
+      ru: ["слово", "слова", "слов"],
+      en: ["word", "words", "words"],
+    },
   },
   nonsense: {
     min: 20,
     max: 140,
     step: 10,
     defaultValue: 40,
-    forms: ["слово", "слова", "слов"],
+    forms: {
+      ru: ["слово", "слова", "слов"],
+      en: ["word", "words", "words"],
+    },
   },
   words: {
     min: 20,
     max: 140,
     step: 10,
     defaultValue: 40,
-    forms: ["слово", "слова", "слов"],
+    forms: {
+      ru: ["слово", "слова", "слов"],
+      en: ["word", "words", "words"],
+    },
   },
 };
 

@@ -1,3 +1,5 @@
+import { useI18n } from "../../../i18n";
+
 function TrainerTextPanel({
   isLocked,
   isTextLoading,
@@ -5,6 +7,8 @@ function TrainerTextPanel({
   trainerTextRef,
   renderText,
 }) {
+  const { t } = useI18n();
+
   return (
     <div className={`trainer-text-shell ${isLocked ? "trainer-text-shell-locked" : ""}`}>
       <div className="text text-scroll text-scroll-trainer" ref={trainerTextRef}>
@@ -40,7 +44,7 @@ function TrainerTextPanel({
                 <circle cx="12" cy="15" r="1.2" fill="currentColor" />
               </svg>
             </div>
-            <strong className="trainer-lock-title">Тренажер доступен только с ПК</strong>
+            <strong className="trainer-lock-title">{t("trainer.lockTitle")}</strong>
           </div>
         </div>
       ) : null}

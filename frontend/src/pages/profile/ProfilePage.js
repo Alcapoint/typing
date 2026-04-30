@@ -1,17 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import api from "../../api";
 import LoadingHint from "../../components/feedback/LoadingHint";
+import { useI18n } from "../../i18n";
 
 function fileToBase64(file) {
+  const fallbackMessage = "Failed to read file.";
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result);
-    reader.onerror = () => reject(new Error("Не удалось прочитать файл."));
+    reader.onerror = () => reject(new Error(fallbackMessage));
     reader.readAsDataURL(file);
   });
 }
 
 function ProfilePage({ currentUser, onProfileUpdate }) {
+  const { t } = useI18n();
   const [form, setForm] = useState({
     first_name: "",
     last_name: "",
@@ -95,9 +98,9 @@ function ProfilePage({ currentUser, onProfileUpdate }) {
         setUserTexts(Array.isArray(data) ? data : []);
       })
       .catch(() => {
-        setTextError("Не удалось загрузить ваши тексты.");
+        setTextError(t("profile.errorLoadTexts"));
       });
-  }, [currentUser]);
+  }, [currentUser, t]);
 
   useEffect(() => {
     if (!currentUser || currentUser.avatar) {
@@ -139,8 +142,8 @@ function ProfilePage({ currentUser, onProfileUpdate }) {
   if (!currentUser) {
     return (
       <div className="page-card">
-        <h2>Профиль</h2>
-        <p className="page-muted">Профиль доступен после входа в аккаунт.</p>
+        <h2>{t("profile.title")}</h2>
+        <p className="page-muted">{t("profile.loginRequired")}</p>
       </div>
     );
   }
@@ -170,7 +173,7 @@ function ProfilePage({ currentUser, onProfileUpdate }) {
   const handleSubmit = (event) => {
     event.preventDefault();
     if (form.country && !countries.includes(form.country)) {
-      setError("Выберите страну из списка.");
+      setError(t("profile.chooseCountry"));
       return;
     }
 
@@ -182,10 +185,10 @@ function ProfilePage({ currentUser, onProfileUpdate }) {
       .updateProfile(form)
       .then((user) => {
         onProfileUpdate(user);
-        setMessage("Профиль сохранён.");
+        setMessage(t("profile.saved"));
       })
       .catch(() => {
-        setError("Не удалось сохранить профиль.");
+        setError(t("profile.saveError"));
       })
       .finally(() => setIsSaving(false));
   };
@@ -205,9 +208,9 @@ function ProfilePage({ currentUser, onProfileUpdate }) {
       await api.changeAvatar({ file: avatar });
       const user = await api.getUserData();
       onProfileUpdate(user);
-      setMessage("Аватар обновлён.");
+      setMessage(t("profile.avatarUpdated"));
     } catch (uploadError) {
-      setError("Не удалось обновить аватар.");
+      setError(t("profile.avatarUpdateError"));
     } finally {
       event.target.value = "";
       setIsUploadingAvatar(false);
@@ -224,10 +227,10 @@ function ProfilePage({ currentUser, onProfileUpdate }) {
       .then(() => api.getUserData())
       .then((user) => {
         onProfileUpdate(user);
-        setMessage("Аватар удалён.");
+        setMessage(t("profile.avatarDeleted"));
       })
       .catch(() => {
-        setError("Не удалось удалить аватар.");
+        setError(t("profile.avatarDeleteError"));
       })
       .finally(() => setIsUploadingAvatar(false));
   };
@@ -297,11 +300,11 @@ function ProfilePage({ currentUser, onProfileUpdate }) {
             ? prev.map((item) => (item.id === savedText.id ? savedText : item))
             : [savedText, ...prev]
         ));
-        setTextMessage(editingTextId ? "Текст обновлён." : "Текст добавлен.");
+        setTextMessage(editingTextId ? t("profile.textUpdated") : t("profile.textAdded"));
         resetTextForm();
       })
       .catch(() => {
-        setTextError("Не удалось сохранить текст.");
+        setTextError(t("profile.textSaveError"));
       })
       .finally(() => setIsSavingText(false));
   };
@@ -318,7 +321,7 @@ function ProfilePage({ currentUser, onProfileUpdate }) {
         }
       })
       .catch(() => {
-        setTextError("Не удалось удалить текст.");
+        setTextError(t("profile.textDeleteError"));
       });
   };
 
@@ -341,7 +344,7 @@ function ProfilePage({ currentUser, onProfileUpdate }) {
                     type="button"
                     onClick={handleAvatarDelete}
                     disabled={isUploadingAvatar}
-                    aria-label="Удалить аватар"
+                    aria-label={t("profile.avatarDeleteAria")}
                   >
                     <svg viewBox="0 0 24 24" aria-hidden="true">
                       <path
@@ -359,7 +362,7 @@ function ProfilePage({ currentUser, onProfileUpdate }) {
                     type="button"
                     onClick={openAvatarPicker}
                     disabled={isUploadingAvatar}
-                    aria-label="Обновить аватар"
+                    aria-label={t("profile.avatarUpdateAria")}
                   >
                     <svg viewBox="0 0 24 24" aria-hidden="true">
                       <path
@@ -379,7 +382,7 @@ function ProfilePage({ currentUser, onProfileUpdate }) {
                   type="button"
                   onClick={openAvatarPicker}
                   disabled={isUploadingAvatar}
-                  aria-label="Загрузить аватар"
+                  aria-label={t("profile.avatarUploadAria")}
                 >
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path
@@ -413,12 +416,12 @@ function ProfilePage({ currentUser, onProfileUpdate }) {
               <button
                 className="profile-avatar-hint-trigger"
                 type="button"
-                aria-label="Как добавить аватар"
+                aria-label={t("profile.avatarHelpAria")}
               >
                 ?
               </button>
               <div className="profile-avatar-hint-tooltip">
-                Добавьте аватар через наведение на иконку профиля и нажатие на значок загрузки.
+                {t("profile.avatarHelpText")}
               </div>
             </div>
           ) : null}
@@ -433,37 +436,37 @@ function ProfilePage({ currentUser, onProfileUpdate }) {
         </div>
 
         <div className="profile-hero-copy">
-          <p className="page-muted">Профиль пользователя</p>
+          <p className="page-muted">{t("profile.userProfile")}</p>
           <h2>{currentUser.username}</h2>
-          <span className="profile-email">{currentUser.country || "Страна не указана"}</span>
+          <span className="profile-email">{currentUser.country || t("profile.countryMissing")}</span>
         </div>
       </div>
 
       <form className="page-card profile-form" onSubmit={handleSubmit}>
         <div className="panel-heading">
-          <h3>Личные данные</h3>
-          <p>Обновите имя, фамилию, возраст, страну и аватар.</p>
+          <h3>{t("profile.personalData")}</h3>
+          <p>{t("profile.personalDataBody")}</p>
         </div>
 
         <div className="profile-grid">
           <input
             className="auth-input"
             name="first_name"
-            placeholder="Имя"
+            placeholder={t("profile.firstName")}
             value={form.first_name}
             onChange={handleChange}
           />
           <input
             className="auth-input"
             name="last_name"
-            placeholder="Фамилия"
+            placeholder={t("profile.lastName")}
             value={form.last_name}
             onChange={handleChange}
           />
           <input
             className="auth-input"
             name="age"
-            placeholder="Возраст"
+            placeholder={t("profile.age")}
             type="number"
             min="1"
             max="120"
@@ -474,7 +477,7 @@ function ProfilePage({ currentUser, onProfileUpdate }) {
             <input
               className="auth-input"
               name="country"
-              placeholder="Страна проживания"
+              placeholder={t("profile.country")}
               autoComplete="off"
               value={form.country}
               onChange={handleChange}
@@ -502,27 +505,27 @@ function ProfilePage({ currentUser, onProfileUpdate }) {
         {message ? <p className="auth-message auth-success">{message}</p> : null}
 
         <button className="result-btn result-btn-primary" type="submit" disabled={isSaving}>
-          {isSaving ? <LoadingHint variant="button" /> : "Сохранить профиль"}
+          {isSaving ? <LoadingHint variant="button" /> : t("profile.saveProfile")}
         </button>
       </form>
 
       <div className="page-card profile-form">
         <div className="panel-heading">
-          <h3>Свои тексты</h3>
-          <p>Добавляйте свои тексты и проходите тренировки в любом режиме только для себя.</p>
+          <h3>{t("profile.userTexts")}</h3>
+          <p>{t("profile.userTextsBody")}</p>
         </div>
 
         <form className="profile-user-text-form" onSubmit={handleTextSubmit}>
           <input
             className="auth-input"
-            placeholder="Название текста"
+            placeholder={t("profile.textTitle")}
             value={textForm.title}
             onChange={(event) => setTextForm((prev) => ({ ...prev, title: event.target.value }))}
             required
           />
           <textarea
             className="auth-input profile-user-textarea"
-            placeholder="Введите свой текст"
+            placeholder={t("profile.textContent")}
             value={textForm.content}
             onChange={(event) => setTextForm((prev) => ({ ...prev, content: event.target.value }))}
             required
@@ -533,11 +536,11 @@ function ProfilePage({ currentUser, onProfileUpdate }) {
 
           <div className="result-actions">
             <button className="result-btn result-btn-primary" type="submit" disabled={isSavingText}>
-              {isSavingText ? <LoadingHint variant="button" /> : editingTextId ? "Сохранить текст" : "Добавить текст"}
+              {isSavingText ? <LoadingHint variant="button" /> : editingTextId ? t("profile.saveText") : t("profile.addText")}
             </button>
             {editingTextId ? (
               <button className="result-btn result-btn-secondary" type="button" onClick={resetTextForm}>
-                Отмена
+                {t("profile.cancel")}
               </button>
             ) : null}
           </div>
@@ -562,21 +565,21 @@ function ProfilePage({ currentUser, onProfileUpdate }) {
                       setTextError("");
                     }}
                   >
-                    Изменить
+                    {t("profile.edit")}
                   </button>
                   <button
                     className="result-btn result-btn-secondary"
                     type="button"
                     onClick={() => handleTextDelete(item.id)}
                   >
-                    Удалить
+                    {t("profile.delete")}
                   </button>
                 </div>
               </div>
               <p className="history-text-preview">{item.content}</p>
             </div>
           )) : (
-            <p className="page-muted">У вас пока нет своих текстов.</p>
+            <p className="page-muted">{t("profile.noTexts")}</p>
           )}
         </div>
       </div>

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import api from "../../api";
 import { clearToken, setToken } from "../../api/baseClient";
+import { useI18n } from "../../i18n";
 
 const initialForm = {
   login: "",
@@ -12,6 +13,7 @@ const initialForm = {
 };
 
 function Auth({ currentUser, onLogin, onLogout }) {
+  const { t } = useI18n();
   const [mode, setMode] = useState("login");
   const [isOpen, setIsOpen] = useState(false);
   const [form, setForm] = useState(initialForm);
@@ -79,7 +81,7 @@ function Auth({ currentUser, onLogin, onLogout }) {
 
   const extractError = (data) => {
     if (!data) {
-      return "Не удалось выполнить запрос.";
+      return t("auth.requestFailed");
     }
 
     if (typeof data === "string") {
@@ -101,7 +103,7 @@ function Auth({ currentUser, onLogin, onLogout }) {
       return value;
     }
 
-    return "Проверьте заполнение формы.";
+    return t("auth.checkForm");
   };
 
   const handleLogin = () => {
@@ -129,7 +131,7 @@ function Auth({ currentUser, onLogin, onLogout }) {
 
   const handleRegister = () => {
     if (form.password !== form.password_confirm) {
-      setError("Пароли должны совпадать.");
+      setError(t("auth.passwordsMatch"));
       return;
     }
 
@@ -155,7 +157,7 @@ function Auth({ currentUser, onLogin, onLogout }) {
         return onLogin();
       })
       .then(() => {
-        setSuccess("Регистрация прошла успешно.");
+        setSuccess(t("auth.successRegistered"));
         setIsOpen(false);
       })
       .catch((err) => {
@@ -204,13 +206,16 @@ function Auth({ currentUser, onLogin, onLogout }) {
 
         <div className={`user-menu-popover ${isUserMenuOpen ? "open" : ""}`}>
           <Link className="user-menu-link" to="/profile" onClick={() => setIsUserMenuOpen(false)}>
-            Профиль
+            {t("auth.profile")}
           </Link>
           <Link className="user-menu-link" to="/history" onClick={() => setIsUserMenuOpen(false)}>
-            История тренировок
+            {t("auth.history")}
+          </Link>
+          <Link className="user-menu-link" to="/comparison" onClick={() => setIsUserMenuOpen(false)}>
+            {t("auth.comparison")}
           </Link>
           <button className="user-menu-link user-menu-link-button" onClick={handleLogout} type="button">
-            Выйти
+            {t("auth.logout")}
           </button>
         </div>
       </div>
@@ -224,13 +229,13 @@ function Auth({ currentUser, onLogin, onLogout }) {
           className="auth-toolbar-btn"
           onClick={() => openPanel("login")}
         >
-          Войти
+          {t("auth.login")}
         </button>
         <button
           className="auth-toolbar-btn auth-primary"
           onClick={() => openPanel("register")}
         >
-          Регистрация
+          {t("auth.register")}
         </button>
       </div>
 
@@ -240,7 +245,7 @@ function Auth({ currentUser, onLogin, onLogout }) {
             <div>
               <p className="auth-kicker">TYPE</p>
               <h2 className="auth-title">
-                {isRegister ? "Регистрация" : "Вход"}
+                {isRegister ? t("auth.titleRegister") : t("auth.titleLogin")}
               </h2>
             </div>
             <button
@@ -258,14 +263,14 @@ function Auth({ currentUser, onLogin, onLogout }) {
               type="button"
               onClick={() => setMode("login")}
             >
-              Вход
+              {t("auth.titleLogin")}
             </button>
             <button
               className={isRegister ? "active" : ""}
               type="button"
               onClick={() => setMode("register")}
             >
-              Регистрация
+              {t("auth.titleRegister")}
             </button>
           </div>
 
@@ -296,7 +301,7 @@ function Auth({ currentUser, onLogin, onLogout }) {
             <input
               className="auth-input"
               name="login"
-              placeholder="Username или email"
+              placeholder={t("auth.usernameOrEmail")}
               value={form.login}
               onChange={handleChange}
               ref={firstAuthInputRef}
@@ -307,7 +312,7 @@ function Auth({ currentUser, onLogin, onLogout }) {
           <input
             className="auth-input"
             name="password"
-            placeholder="Пароль"
+            placeholder={t("auth.password")}
             type="password"
             value={form.password}
             onChange={handleChange}
@@ -318,7 +323,7 @@ function Auth({ currentUser, onLogin, onLogout }) {
             <input
               className="auth-input"
               name="password_confirm"
-              placeholder="Подтвердите пароль"
+              placeholder={t("auth.confirmPassword")}
               type="password"
               value={form.password_confirm}
               onChange={handleChange}
@@ -331,10 +336,10 @@ function Auth({ currentUser, onLogin, onLogout }) {
 
           <button className="auth-submit" type="submit" disabled={isSubmitting}>
             {isSubmitting
-              ? "Подождите..."
+              ? t("auth.wait")
               : isRegister
-                ? "Зарегистрироваться"
-                : "Войти"}
+                ? t("auth.registerAction")
+                : t("auth.login")}
           </button>
         </form>
       )}
